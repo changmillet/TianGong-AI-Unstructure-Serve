@@ -6,10 +6,20 @@ from pathlib import Path
 import shutil
 import shlex
 import subprocess
+import tempfile
 
 import pytest
 
 ROOT = Path(__file__).parents[1]
+
+
+@pytest.fixture
+def compose_env_file():
+    # Snap Docker cannot see pytest's default host /tmp namespace.
+    private_output = ROOT / "output"
+    private_output.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="compose-env-", dir=private_output) as path:
+        yield Path(path) / ".env"
 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose CLI required")
@@ -127,10 +137,9 @@ def test_model_memory_defaults_are_specific_to_topology(mode, override, memory, 
     ],
 )
 def test_parallel_memory_uses_topology_specific_private_overrides(
-    tmp_path, override, kv_key, expected_memory, kv_value
+    compose_env_file, override, kv_key, expected_memory, kv_value
 ):
-    env_file = tmp_path / ".env"
-    env_file.write_text(
+    compose_env_file.write_text(
         "MINERU_DOCKER_GPU_MEMORY=0.10\n"
         "MINERU_DOCKER_GPU_MEMORY_MODEL4=0.22\n"
         f"{kv_key}={kv_value}\n"
@@ -141,7 +150,7 @@ def test_parallel_memory_uses_topology_specific_private_overrides(
             "docker",
             "compose",
             "--env-file",
-            str(env_file),
+            str(compose_env_file),
             "-f",
             str(ROOT / "deploy/mineru-vllm/compose.mineru.yaml"),
             "-f",
