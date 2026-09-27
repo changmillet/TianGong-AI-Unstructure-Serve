@@ -193,6 +193,8 @@ pm2 save
 
 四卡使用 `compose.mineru.parallel4.yaml` 和独立 project `mineru-vlm-parallel4`，绑定 GPU 0/1/2/3，DP=4、TP=1，仍向应用提供单个 30000 端点。所有拓扑都默认把 MinerU2.5 Pro 的 `tie_word_embeddings` 显式传给 vLLM；更换模型时按权重结构核对 `MINERU_DOCKER_TIE_WORD_EMBEDDINGS`。不要同时运行三卡与四卡 project。
 
+`serve.sh` 从 Compose 解析当前配置的最终镜像标签：本机已有该标签时直接以 `--no-build --pull never` 启动，未找到时按原流程构建。PM2 开机恢复走同一入口，不会因已导入的最终镜像而重新拉取基础镜像。跨机导入前须核对最终镜像内容和标签；修改 Dockerfile、依赖或上游版本后，使用新标签构建并重新验收，旧标签存在不代表代码已更新。启动器不打印展开的 Compose 配置或私有 `.env`。
+
 模型端口和显存预算由本机私有 `.env` 控制。启动器会清除旧 PM2 进程环境残留的这些键，再由 Compose 读取 `.env`；更新后使用 `deploy/manage.sh restart model` 或 `restart model4`。单卡/三卡用 `MINERU_DOCKER_GPU_MEMORY`，缺省 0.10；四卡用独立 `MINERU_DOCKER_GPU_MEMORY_MODEL4`，缺省 0.45，**不会继承**通用 0.10。两种比例都是各拓扑的启动缺省，需根据本机共驻留服务和实际请求峰值调节。四卡机器切换配置前先填写或核对 `_MODEL4` 键，避免旧 PM2 环境消失后预算发生意外变化。
 
 三卡和四卡 Compose 默认将每卡 KV 缓存固定为 `3221225472` 字节（3 GiB），单卡默认不固定。可分别在私有 `.env` 中把 `MINERU_DOCKER_KV_CACHE_MEMORY_BYTES` 或四卡专属的 `MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4` 设为其他正整数字节数；显式设为空值会恢复按比例计算 KV 容量。容器始终传 `--gpu-memory-utilization`，固定 KV 时再传 `--kv-cache-memory-bytes`。固定 KV 不使用比例计算缓存容量，但 vLLM 仍按 GPU 总显存乘以比例检查启动时的空闲显存；与其他模型共卡时，比例过高会导致重启失败。3 GiB 是已完成四卡 Ada 短时联合试跑的模板起点，其他机器须按共驻留负载和实际请求峰值重新验收，不能把它当作进程显存上限。权重、激活和运行时仍额外占用显存。目标 vLLM 版本须支持该参数；[vLLM 0.28 的启动检查](https://docs.vllm.ai/en/v0.28.0/api/vllm/v1/worker/utils/)与[KV 分配实现](https://docs.vllm.ai/en/v0.28.0/api/vllm/v1/worker/gpu_worker/)说明两个参数的作用。重启后查看容器实际启动参数、KV 容量及真实 PDF 解析，不能只看 `/health`。

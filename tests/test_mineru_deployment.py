@@ -208,7 +208,8 @@ def test_model_entrypoint_rejects_invalid_kv_cache_bytes():
     assert "positive integer" in result.stderr
 
 
-def test_launcher_resolves_repo_and_keeps_compose_attached(tmp_path):
+@pytest.mark.parametrize("image_present", [True, False])
+def test_launcher_resolves_repo_and_keeps_compose_attached(tmp_path, image_present):
     # Exercise the launcher without requiring NVIDIA devices on the test host.
     # /dev/null is a real character device; only the hardware paths are replaced.
     repo = tmp_path / "repo"
@@ -223,21 +224,44 @@ def test_launcher_resolves_repo_and_keeps_compose_attached(tmp_path):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     docker = fake_bin / "docker"
-    docker.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$CAPTURE"\n')
+    docker.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "image" ]; then '
+        'printf "%s\\n" "$3" > "$IMAGE_CAPTURE"; exit "$IMAGE_INSPECT_EXIT"; fi\n'
+        'case " $* " in\n'
+        '  *" config --images "*) printf "%s\\n" "tiangong/mineru-vlm:test" ;;\n'
+        '  *" up "*) printf "%s\\n" "$@" > "$CAPTURE" ;;\n'
+        "esac\n"
+    )
     docker.chmod(0o755)
     capture = tmp_path / "args"
+    image_capture = tmp_path / "image"
     subprocess.run(
         ["bash", str(launcher), "parallel"],
         cwd=tmp_path,
-        env={**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}", "CAPTURE": str(capture)},
+        env={
+            **os.environ,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "CAPTURE": str(capture),
+            "IMAGE_CAPTURE": str(image_capture),
+            "IMAGE_INSPECT_EXIT": "0" if image_present else "1",
+        },
         check=True,
     )
     args = capture.read_text().splitlines()
+    assert image_capture.read_text().strip() == "tiangong/mineru-vlm:test"
     assert str(repo / "deploy/mineru-vllm/compose.mineru.parallel.yaml") in args
     assert "mineru-vlm-parallel" in args
     assert "--exit-code-from" in args
     assert "--abort-on-container-exit" in args
     assert "-d" not in args
+    if image_present:
+        assert "--no-build" in args
+        assert args[args.index("--pull") + 1] == "never"
+        assert "--build" not in args
+    else:
+        assert "--build" in args
+        assert "--no-build" not in args
 
 
 def test_launcher_drops_stale_pm2_memory_overrides(tmp_path):
@@ -251,7 +275,10 @@ def test_launcher_drops_stale_pm2_memory_overrides(tmp_path):
     )
     fake = tmp_path / "docker"
     fake.write_text(
-        '#!/bin/sh\nprintf "%s\\n" '
+        "#!/bin/sh\n"
+        'if [ "$1" = "image" ]; then exit 0; fi\n'
+        'case " $* " in *" config --images "*) echo "tiangong/mineru-vlm:test"; exit 0;; esac\n'
+        'printf "%s\\n" '
         '"${MINERU_DOCKER_GPU_MEMORY-}" '
         '"${MINERU_DOCKER_GPU_MEMORY_MODEL4-}" '
         '"${MINERU_DOCKER_KV_CACHE_MEMORY_BYTES-}" '

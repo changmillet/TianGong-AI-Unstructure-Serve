@@ -32,5 +32,20 @@ elif [[ "$mode" == parallel4 ]]; then
   compose+=(--file "$repo_root/deploy/mineru-vllm/compose.mineru.parallel4.yaml")
 fi
 
+# The final image may have been imported from another host. Reuse that exact
+# configured tag rather than rebuilding it on every PM2 start or resurrection.
+model_image=$("${compose[@]}" config --images)
+if [[ -z "$model_image" || "$model_image" == *$'\n'* ]]; then
+  echo "Expected exactly one configured MinerU model image." >&2
+  exit 1
+fi
+if docker image inspect "$model_image" >/dev/null 2>&1; then
+  echo "Using the configured local MinerU image without rebuild or pull."
+  image_options=(--no-build --pull never)
+else
+  echo "Configured MinerU image is not local; building from Dockerfile."
+  image_options=(--build)
+fi
+
 # Stay attached so PM2 stop/restart also stops/restarts the container.
-exec "${compose[@]}" up --build --abort-on-container-exit --exit-code-from mineru-vlm mineru-vlm
+exec "${compose[@]}" up "${image_options[@]}" --abort-on-container-exit --exit-code-from mineru-vlm mineru-vlm
