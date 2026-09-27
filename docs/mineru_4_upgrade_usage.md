@@ -51,7 +51,7 @@ uv run mineru-kit models verify --tier basic --small-backend onnx
 
 ## 配置规则
 
-应用配置优先级为 **进程环境 > .env > TOML 回退值**。PM2 env 属于进程环境，load_dotenv 不会覆盖它；部分空字符串会回退到 TOML，不表示清除原配置。Compose 启动器读取仓库 .env，但 Python 读取 .env 不会替 shell 导出变量。
+应用配置优先级为 **进程环境 > .env > TOML 回退值**。PM2 env 属于进程环境，load_dotenv 不会覆盖它；部分空字符串会回退到 TOML，不表示清除原配置。模型启动器对 Docker 端口与显存键有明确例外：先清除历史 PM2 环境覆盖，再让 Compose 读取仓库 `.env`。Python 读取 `.env` 不会替 shell 导出变量。
 
 | 配置 | 代码缺省或部署模板 | 作用 |
 | --- | --- | --- |
@@ -68,6 +68,8 @@ uv run mineru-kit models verify --tier basic --small-backend onnx
 | MINERU_PARSE_SLOT_DIR | 未设置时使用系统临时目录中的 tiangong_mineru_parse_slots | 参与进程必须使用同一锁目录 |
 | MINERU_PARSE_SLOT_WAIT_SECONDS | 代码及模板 1800 秒 | 等待共享槽位的上限；计入 scheduler hard timeout |
 | MINERU_SCHEDULER_WORKERS / GPU_IDS | 模板 3 / 0 | 每个应用调度池的派发进程数 / 池标识；不控制 Docker GPU |
+| MINERU_DOCKER_GPU_MEMORY / MINERU_DOCKER_GPU_MEMORY_MODEL4 | 单卡/三卡缺省 0.10；四卡缺省 0.45 | vLLM 启动空闲显存检查；未固定 KV 时还参与 KV 容量计算 |
+| MINERU_DOCKER_KV_CACHE_MEMORY_BYTES / MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4 | 单卡默认未设置；三卡/四卡默认每卡 3221225472 字节（3 GiB） | 可用正整数字节数覆盖；显式设为空值可恢复按比例计算 KV 容量 |
 | CELERY_BROKER_URL / CELERY_RESULT_BACKEND | 模板为本机 Redis DB 0 | API 与 worker 必须一致 |
 | CELERY_VISIBILITY_TIMEOUT / CELERY_RESULT_EXPIRES | 模板 21600 / 86400 秒 | 两个 app 共用的 Redis 消息确认期限 / 结果保留时间；不是任务执行期限 |
 | MINERU_TASK_STORAGE_DIR | 未设置时使用系统临时目录中的 tiangong_mineru_tasks | 旧任务临时工作区 |
@@ -187,9 +189,13 @@ pm2 save
 
 三卡由一份基础 Compose 加一份 parallel 覆盖文件定义，project 为 mineru-vlm-parallel。一个容器绑定 GPU 0/1/2，DP=3、TP=1，每卡完整模型副本，通过单地址分配请求。应用无需设置三个 URL；单次模型生成不会自动分成三卡计算。
 
-现有模板覆盖单卡、三卡与四卡；其他卡数须新增 Compose 覆盖并同步 GPU ID、DP 数、PM2 显存预算、解析 worker 与共享槽数。
+现有模板覆盖单卡、三卡与四卡；其他卡数须新增 Compose 覆盖并同步 GPU ID、DP 数、每机显存预算、解析 worker 与共享槽数。
 
-四卡使用 `compose.mineru.parallel4.yaml` 和独立 project `mineru-vlm-parallel4`，绑定 GPU 0/1/2/3，DP=4、TP=1，仍向应用提供单个 30000 端点。所有拓扑都默认把 MinerU2.5 Pro 的 `tie_word_embeddings` 显式传给 vLLM；更换模型时按权重结构核对 `MINERU_DOCKER_TIE_WORD_EMBEDDINGS`。四卡 PM2 模板的显存比例为 0.45，需按目标显卡和真实推理峰值验收；不要同时运行三卡与四卡 project。
+四卡使用 `compose.mineru.parallel4.yaml` 和独立 project `mineru-vlm-parallel4`，绑定 GPU 0/1/2/3，DP=4、TP=1，仍向应用提供单个 30000 端点。所有拓扑都默认把 MinerU2.5 Pro 的 `tie_word_embeddings` 显式传给 vLLM；更换模型时按权重结构核对 `MINERU_DOCKER_TIE_WORD_EMBEDDINGS`。不要同时运行三卡与四卡 project。
+
+模型端口和显存预算由本机私有 `.env` 控制。启动器会清除旧 PM2 进程环境残留的这些键，再由 Compose 读取 `.env`；更新后使用 `deploy/manage.sh restart model` 或 `restart model4`。单卡/三卡用 `MINERU_DOCKER_GPU_MEMORY`，缺省 0.10；四卡用独立 `MINERU_DOCKER_GPU_MEMORY_MODEL4`，缺省 0.45，**不会继承**通用 0.10。两种比例都是各拓扑的启动缺省，需根据本机共驻留服务和实际请求峰值调节。四卡机器切换配置前先填写或核对 `_MODEL4` 键，避免旧 PM2 环境消失后预算发生意外变化。
+
+三卡和四卡 Compose 默认将每卡 KV 缓存固定为 `3221225472` 字节（3 GiB），单卡默认不固定。可分别在私有 `.env` 中把 `MINERU_DOCKER_KV_CACHE_MEMORY_BYTES` 或四卡专属的 `MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4` 设为其他正整数字节数；显式设为空值会恢复按比例计算 KV 容量。容器始终传 `--gpu-memory-utilization`，固定 KV 时再传 `--kv-cache-memory-bytes`。固定 KV 不使用比例计算缓存容量，但 vLLM 仍按 GPU 总显存乘以比例检查启动时的空闲显存；与其他模型共卡时，比例过高会导致重启失败。3 GiB 是已完成四卡 Ada 短时联合试跑的模板起点，其他机器须按共驻留负载和实际请求峰值重新验收，不能把它当作进程显存上限。权重、激活和运行时仍额外占用显存。目标 vLLM 版本须支持该参数；[vLLM 0.28 的启动检查](https://docs.vllm.ai/en/v0.28.0/api/vllm/v1/worker/utils/)与[KV 分配实现](https://docs.vllm.ai/en/v0.28.0/api/vllm/v1/worker/gpu_worker/)说明两个参数的作用。重启后查看容器实际启动参数、KV 容量及真实 PDF 解析，不能只看 `/health`。
 
 | 项目 | 配置位置与模板值 |
 | --- | --- |
@@ -197,7 +203,7 @@ pm2 save
 | 镜像内 Web 依赖 | 默认 FastAPI 0.141.1 / Starlette 1.7.0；vLLM 0.28.0 镜像需通过 MINERU_DOCKER_FASTAPI_VERSION=0.136.3、MINERU_DOCKER_STARLETTE_VERSION=1.6.0 覆盖并通过 pip check |
 | 应用模型镜像 | 默认 tiangong/mineru-vlm:4.0.7-vllm0.21.0；可用 MINERU_DOCKER_IMAGE_TAG 按环境覆盖 |
 | 上下文 / 并发序列 | Compose command 的 max-model-len=8192、max-num-seqs=16 |
-| 对外端口 / 每卡显存比例 | 三卡 PM2 env 的 MINERU_DOCKER_PORT=30000、MINERU_DOCKER_GPU_MEMORY=0.10；按实际硬件重新验收 |
+| 对外端口 / 每卡显存预算 | 私有 .env 的 MINERU_DOCKER_PORT；单卡/三卡比例缺省 0.10，四卡专属比例缺省 0.45，均用于启动检查；三卡/四卡 KV 默认每卡 3 GiB，单卡未固定，按实际硬件重新验收 |
 | GPU 绑定 / DP / TP | 三卡由 compose.mineru.parallel.yaml 设置，四卡由 compose.mineru.parallel4.yaml 设置 |
 | 输出层权重绑定 | Compose 通过 --hf-overrides 设置顶层 tie_word_embeddings=true；当前 MinerU2.5 Pro 权重不含独立 lm_head.weight |
 | 模型卷 / 下载缓存卷 | 默认 mineru-vlm-models / mineru-vlm-cache，可用 MINERU_DOCKER_MODEL_VOLUME / MINERU_DOCKER_CACHE_VOLUME 覆盖 |

@@ -9,6 +9,10 @@ case "$mode" in
 esac
 
 cd "$repo_root"
+# Historical PM2 records can retain env values after a template removes them.
+# The model port and memory budget come exclusively from this host's .env file.
+unset MINERU_DOCKER_PORT MINERU_DOCKER_GPU_MEMORY MINERU_DOCKER_KV_CACHE_MEMORY_BYTES
+unset MINERU_DOCKER_GPU_MEMORY_MODEL4 MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4
 # Device nodes can appear after Docker/PM2 during boot. Never load host modules
 # or restart the shared Docker daemon from this application launcher.
 for ((attempt=0; attempt<60; attempt++)); do

@@ -1,7 +1,7 @@
 version: 1
 layout: repo
-lastReviewedAt: "2026-09-25"
-lastReviewedCommit: "069778cf9c9a7fdf32bf706d46f3756e94ae2b4a"
+lastReviewedAt: "2026-09-27"
+lastReviewedCommit: "d3eac8a83d3abeb449009f98af808dc6e2fd3fdc"
 repo:
   id: unstructure-serve
 routing:

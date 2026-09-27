@@ -65,6 +65,147 @@ def test_pm2_parallel_runs_one_foreground_compose_service():
     assert app["script"] == "deploy/mineru-vllm/serve.sh"
     assert app["args"] == "parallel"
     assert app["kill_timeout"] >= 70000
+    assert "MINERU_DOCKER_GPU_MEMORY" not in app.get("env", {})
+
+
+@pytest.mark.parametrize(
+    ("mode", "override", "memory", "kv_cache"),
+    [
+        ("parallel", "compose.mineru.parallel.yaml", "0.10", "3221225472"),
+        ("parallel4", "compose.mineru.parallel4.yaml", "0.45", "3221225472"),
+    ],
+)
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose CLI required")
+def test_model_memory_defaults_are_specific_to_topology(mode, override, memory, kv_cache):
+    env = {key: value for key, value in os.environ.items() if not key.startswith("MINERU_")}
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "--env-file",
+            "/dev/null",
+            "-f",
+            str(ROOT / "deploy/mineru-vllm/compose.mineru.yaml"),
+            "-f",
+            str(ROOT / "deploy/mineru-vllm" / override),
+            "config",
+            "--format",
+            "json",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    service = json.loads(result.stdout)["services"]["mineru-vlm"]
+    assert service["environment"]["MINERU_DOCKER_GPU_MEMORY"] == memory
+    assert service["environment"]["MINERU_DOCKER_KV_CACHE_MEMORY_BYTES"] == kv_cache
+    assert "--gpu-memory-utilization" not in service["command"]
+    assert "--kv-cache-memory-bytes" not in service["command"]
+    assert service["entrypoint"] == ["/bin/bash", "/usr/local/bin/mineru-model-entrypoint"]
+    assert any("model-entrypoint.sh" in volume["source"] for volume in service["volumes"])
+    pm2 = json.loads(
+        (
+            ROOT
+            / f"deploy/pm2/ecosystem.vllm.{mode if mode == 'parallel4' else 'parallele'}.config.json"
+        ).read_text()
+    )["apps"][0]
+    assert "MINERU_DOCKER_GPU_MEMORY" not in pm2.get("env", {})
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose CLI required")
+@pytest.mark.parametrize("kv_value", ["4294967296", ""])
+@pytest.mark.parametrize(
+    ("override", "kv_key", "expected_memory"),
+    [
+        ("compose.mineru.parallel.yaml", "MINERU_DOCKER_KV_CACHE_MEMORY_BYTES", "0.10"),
+        (
+            "compose.mineru.parallel4.yaml",
+            "MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4",
+            "0.22",
+        ),
+    ],
+)
+def test_parallel_memory_uses_topology_specific_private_overrides(
+    tmp_path, override, kv_key, expected_memory, kv_value
+):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "MINERU_DOCKER_GPU_MEMORY=0.10\n"
+        "MINERU_DOCKER_GPU_MEMORY_MODEL4=0.22\n"
+        f"{kv_key}={kv_value}\n"
+    )
+    env = {key: value for key, value in os.environ.items() if not key.startswith("MINERU_")}
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "--env-file",
+            str(env_file),
+            "-f",
+            str(ROOT / "deploy/mineru-vllm/compose.mineru.yaml"),
+            "-f",
+            str(ROOT / "deploy/mineru-vllm" / override),
+            "config",
+            "--format",
+            "json",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    memory = json.loads(result.stdout)["services"]["mineru-vlm"]["environment"]
+    assert memory["MINERU_DOCKER_GPU_MEMORY"] == expected_memory
+    assert memory["MINERU_DOCKER_KV_CACHE_MEMORY_BYTES"] == kv_value
+
+
+@pytest.mark.parametrize(
+    ("memory", "kv_cache", "expected"),
+    [
+        ("0.22", "", ["--gpu-memory-utilization", "0.22"]),
+        (
+            "0.22",
+            "3221225472",
+            [
+                "--gpu-memory-utilization",
+                "0.22",
+                "--kv-cache-memory-bytes",
+                "3221225472",
+            ],
+        ),
+    ],
+)
+def test_model_entrypoint_passes_memory_options(tmp_path, memory, kv_cache, expected):
+    fake = tmp_path / "mineru-kit"
+    fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$CAPTURE"\n')
+    fake.chmod(0o755)
+    capture = tmp_path / "args"
+    subprocess.run(
+        ["bash", str(ROOT / "deploy/mineru-vllm/model-entrypoint.sh"), "--port", "30000"],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}:{os.environ['PATH']}",
+            "CAPTURE": str(capture),
+            "MINERU_DOCKER_GPU_MEMORY": memory,
+            "MINERU_DOCKER_KV_CACHE_MEMORY_BYTES": kv_cache,
+        },
+        check=True,
+    )
+    args = capture.read_text().splitlines()
+    assert args[:4] == ["vlm-server", "--engine", "vllm", "--port"]
+    assert args[5:] == expected
+
+
+def test_model_entrypoint_rejects_invalid_kv_cache_bytes():
+    result = subprocess.run(
+        ["bash", str(ROOT / "deploy/mineru-vllm/model-entrypoint.sh")],
+        env={**os.environ, "MINERU_DOCKER_KV_CACHE_MEMORY_BYTES": "3GiB"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "positive integer" in result.stderr
 
 
 def test_launcher_resolves_repo_and_keeps_compose_attached(tmp_path):
@@ -97,6 +238,41 @@ def test_launcher_resolves_repo_and_keeps_compose_attached(tmp_path):
     assert "--exit-code-from" in args
     assert "--abort-on-container-exit" in args
     assert "-d" not in args
+
+
+def test_launcher_drops_stale_pm2_memory_overrides(tmp_path):
+    launcher = tmp_path / "repo/deploy/mineru-vllm/serve.sh"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(
+        (ROOT / "deploy/mineru-vllm/serve.sh")
+        .read_text()
+        .replace("/dev/nvidia-uvm-tools", "/dev/null")
+        .replace("/dev/nvidia-uvm", "/dev/null")
+    )
+    fake = tmp_path / "docker"
+    fake.write_text(
+        '#!/bin/sh\nprintf "%s\\n" '
+        '"${MINERU_DOCKER_GPU_MEMORY-}" '
+        '"${MINERU_DOCKER_GPU_MEMORY_MODEL4-}" '
+        '"${MINERU_DOCKER_KV_CACHE_MEMORY_BYTES-}" '
+        '"${MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4-}" > "$CAPTURE"\n'
+    )
+    fake.chmod(0o755)
+    capture = tmp_path / "env"
+    subprocess.run(
+        ["bash", str(launcher), "parallel4"],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}:{os.environ['PATH']}",
+            "CAPTURE": str(capture),
+            "MINERU_DOCKER_GPU_MEMORY": "0.45",
+            "MINERU_DOCKER_GPU_MEMORY_MODEL4": "0.45",
+            "MINERU_DOCKER_KV_CACHE_MEMORY_BYTES": "1",
+            "MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4": "1",
+        },
+        check=True,
+    )
+    assert capture.read_text().splitlines() == ["", "", "", ""]
 
 
 def test_launcher_fails_when_uvm_devices_never_appear(tmp_path):

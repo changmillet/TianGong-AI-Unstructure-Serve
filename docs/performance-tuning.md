@@ -157,9 +157,9 @@ DP/TP 原理参考 [vLLM 官方部署说明](https://docs.vllm.ai/en/v0.21.0/ser
 
 ### 6.2 本仓库具体修改位置
 
-三卡模板 `deploy/mineru-vllm/compose.mineru.parallel.yaml` 与四卡模板 `deploy/mineru-vllm/compose.mineru.parallel4.yaml` 的 `device_ids`、`--data-parallel-size` 和 `--tensor-parallel-size` 是显式值。卡数变化须一起修改，并核对 PM2 显存比例、parse worker 数、`MINERU_PARSE_SLOTS`、测试与文档；2 卡或 5 卡需新增对应覆盖模板，不存在只改 `GPU_IDS` 就自动扩卡的能力。基础 `deploy/mineru-vllm/compose.mineru.yaml` 的 `MINERU_DOCKER_GPU_ID` 只用于单卡拓扑。
+三卡模板 `deploy/mineru-vllm/compose.mineru.parallel.yaml` 与四卡模板 `deploy/mineru-vllm/compose.mineru.parallel4.yaml` 的 `device_ids`、`--data-parallel-size` 和 `--tensor-parallel-size` 是显式值。卡数变化须一起修改，并核对每机显存预算、parse worker 数、`MINERU_PARSE_SLOTS`、测试与文档；2 卡或 5 卡需新增对应覆盖模板，不存在只改 `GPU_IDS` 就自动扩卡的能力。基础 `deploy/mineru-vllm/compose.mineru.yaml` 的 `MINERU_DOCKER_GPU_ID` 只用于单卡拓扑。
 
-`MINERU_DOCKER_GPU_MEMORY` 在 Compose/PM2 中设置，当前 0.10 是在共享 GPU 上验证后的本机配置，不是所有机器建议。max-model-len=8192、max-num-seqs=16 在 Compose command 中固定；修改镜像、模型、长度或序列数要重新测峰值和启动所需显存。扩大最大上下文不是免费提速，并发序列数也不是每秒吞吐。
+显存配置在本机私有 `.env` 中设置；PM2 模板不设内存键，模型启动器清除旧 PM2 环境残留后以 `.env` 为准。单卡/三卡的 `MINERU_DOCKER_GPU_MEMORY` 缺省 0.10 是已有 96 GiB 共享 GPU 实测起点；四卡独立的 `MINERU_DOCKER_GPU_MEMORY_MODEL4` 缺省 0.45，不继承通用 0.10。这些均非跨机器建议。三卡和四卡模板默认以每卡 3 GiB 固定 KV，单卡不固定；可用 `MINERU_DOCKER_KV_CACHE_MEMORY_BYTES` 或四卡 `_MODEL4` 键覆盖正整数字节数，显式空值恢复比例定容。固定 KV 时比例不用于 KV 定容，但 vLLM 仍按该比例检查启动时的空闲显存，所以共卡时须分别核对两者。KV 大小以外的权重、激活和运行时仍占显存。max-model-len=8192、max-num-seqs=16 在 Compose command 中固定；修改镜像、模型、长度或序列数要重新测峰值和启动所需显存。扩大最大上下文不是免费提速，并发序列数也不是每秒吞吐。
 
 MinerU VLM 依赖匹配的解析模型和输出协议，不能把它直接替换成任意聊天模型。独立图片描述模型才通过 `VISION_MODEL` 等选择通用多模态模型。模型镜像升级仍在 Docker 内完成，不给应用 `.venv` 安装 vLLM。
 
@@ -205,11 +205,15 @@ TP2 使用两卡，串行改善不到 1%，并发样本没有改善，未形成�
 
 ### 6.5 共享显存预算
 
-当前三卡配置将 `MINERU_DOCKER_GPU_MEMORY` 从 0.15 调整到 0.10，仍使用 BF16、DP3/TP1、16 序列、8192 上下文，不改变解析质量档位或图片分辨率。
+历史三卡比例定容配置将 `MINERU_DOCKER_GPU_MEMORY` 从 0.15 调整到 0.10，仍使用 BF16、DP3/TP1、16 序列、8192 上下文，不改变解析质量档位或图片分辨率。该测量早于三卡模板默认固定 3 GiB KV，不表示新模板仍按比例分配缓存。
 
 同一 4.0.3/0.21.0 镜像的三卡候选，每副本启动日志报告约 505,000 token 的 KV cache 容量，高于 `16 × 8192 = 131072` 的完整序列预算。NVML 对各容器 GPU 进程的快照总占用约为 41.48 GiB（0.15）与 28.08 GiB（0.10 候选刚就绪）；最终 0.10 生产配置完成真实 API/图片验收后为 29.90 GiB，见私有 `memory-final.json`。这些是相应阶段的实占，不是峰值或容器硬性内存上限。不同并发、图捕获、缓存和同卡进程启动顺序会改变该值，必须在实际推理预热后再次测量。
 
 0.10 候选按上一节相同的 114 页混合输入重复三轮，批次耗时 72.61、72.39、71.05 秒，整本页码、资产和关键表格均通过。与约 71–72 秒的原预算测量接近，本轮采用较小预算以节省显存，不宣称增加吞吐；该短样本也不能替代千页含图文档的质量与容量验收。原始证据为私有 `dp3-memory10-*/report.json`、`memory-candidate-ready.json` 及容器日志。
+
+另一台四张 RTX 5000 Ada（每卡 32760 MiB）的试运行使用 `tiangong/mineru-vlm:4.0.7-vllm0.28.0`、DP4/TP1、每卡固定 KV `3221225472` 字节（3 GiB）、8192 上下文和 16 序列。重启后空载 `nvidia-smi` 约为每卡 6503–6522 MiB；一个私有 8 页 PDF 的 advanced 解析返回 85 个内容项，四个 rank 的成功请求计数都增加，耗时约 20.21 秒。该次未与 Embed 同卡运行，也未测请求期间每卡显存峰值；3 GiB 是此机器的试运行值，不能作为其他显卡容量或共驻留配置的默认值。
+
+随后在同一四卡机器上与 vLLM 0.25.0 的四副本 Nemotron-3-Embed-8B-BF16（BF16、4096 token 上限、启动空闲检查比例 0.62）共同运行。8 页 advanced PDF 再次完成，返回 85 项、耗时 19.69 秒，四个 MinerU rank 均有成功计数增长；同期 32 次向量请求全部完成，四个 Embed rank 均有成功计数增长。每 0.25 秒采样的单卡最高已用显存为 22713 MiB、最低空闲 9510 MiB，未见 OOM。之后把 8 次约 3401 token 的向量请求与另一轮 8 页 PDF 同时运行：PDF 返回 85 项、耗时 19.28 秒，MinerU 与 Embed 各四个 rank 均处理请求；每 0.2 秒的 80 次显存采样中单卡最高已用 23129 MiB、最低空闲 9094 MiB，全部请求成功。两组模型共存时，再把固定 KV 模式下的启动空闲检查比例显式设为本机私有值 0.24，MinerU 重启成功并在日志中确认每卡 3 GiB KV、每个 rank 有 262144 token KV 容量；重启后 8 页 PDF 返回 85 项、四个 rank 均成功，Embed 的向量验收亦通过。当前 `max-num-seqs=16` 与 `max-model-len=8192` 的乘积为 131072 token，不能据此简单推断多模态请求的实际峰值，却说明当前固定 KV 容量并非只有 8192 token。证据保存在私有 `output/validation/`。这些是样本期间的观测值，不代表持续高并发峰值或其他机器的容量。
 
 重新调节时先读取每个 engine 的实际 KV token 容量，再观察等待队列、抢占、显存峰值和输出质量。换成更多 KV heads、更长上下文、更多序列或不同精度后重新核算；0.10 对较小显存 GPU 可能根本无法启动，不能当作通用参数。显存比例不是吞吐旋钮，也不是进程实际显存的严格上限。
 

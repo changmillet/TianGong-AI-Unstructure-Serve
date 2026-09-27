@@ -31,6 +31,8 @@ uv run --group dev pytest
 
 常规测试用替身隔离外部依赖，覆盖路由参数、SDK 适配、资产完整性、阅读顺序、视觉失败、上传清理、共享解析槽和批量恢复；`test_mineru4_adapter.py` 还用真实小 PDF 文本层验证“明显有字却零块”必须失败、仅选中空白页可保持空结果；不代表模型解析质量或生产容量已验证。
 
+`test_mineru_deployment.py` 验证 Compose 的三卡/四卡默认每卡固定 3 GiB KV、拓扑专属覆盖与显式空值回退、PM2 不覆盖私有配置、旧进程环境在模型启动器中被清除，以及容器入口始终传启动检查比例、固定 KV 时再传 KV 字节数。它只验证参数组装；共享 GPU 的真实峰值和 PDF 正确性仍须运行下方验收。
+
 `test_vision_capacity_http.py` 使用本地真实 TCP/HTTP 连接模拟 TLS 握手不响应和 HTTP 503，验证快速切换、跨调用冷却及恢复后重新分配；正常响应刻意晚于连接预算，确保不会误用短预算截断推理。该测试的响应是固定样本，模型质量仍须使用下面的真实 PDF 验收。`test_vision_health.py` 覆盖探测鉴权/前缀、有限兼容回退、模型匹配、总超时、禁止重定向、跨实例 leader 租约、状态过期和关闭时取消；健康成功不得直接恢复并发。
 
 持久任务的针对性测试包括 `test_durable_jobs.py`、`test_durable_pipeline.py`、`test_job_api.py` 和 `test_manage_jobs.py`：覆盖发布结果不明、元数据落盘失败、旧代消息、逐阶段复用、文件校验、下载租约与保留期清理。共享视觉容量包含真实 fork/spawn/进程死亡、跨进程半开独占、失败后继续熔断及旧在途成功不能覆盖新故障，以及本地 HTTP fixture；只有显式模型回归才算实际推理。
@@ -50,7 +52,7 @@ Black 排除任意层级的 `.venv` 和根目录的 input/output/pdfs/pickle，�
 | `test_mineru_input_pdfs.py` | `MINERU_RUN_INPUT_PDFS=1` | 固定样本清单的首页、第 11 页或末页；p2 缺省及四档整本；九页论文与 46 页 fese 整本 |
 | `test_vision_input_pdf.py` | `MINERU_RUN_VISION_PDFS=1` | 论文第五页实际图片及远端主动健康检查、独立测试状态的半开恢复，验证描述中的关键数值和单位 |
 | `test_durable_input_pdfs.py` | `MINERU_RUN_DURABLE_PDFS=1` | input/p2 三类真实异步任务、重复幂等键、轻量状态、文件下载和旧结果合同 |
-| `test_mineru_data_parallel.py` | `MINERU_RUN_DP_PDFS=1` | p2、九页论文整本及三个 engine 的成功请求增量 |
+| `test_mineru_data_parallel.py` | `MINERU_RUN_DP_PDFS=1`；四卡另设 `MINERU_TEST_DP_SIZE=4` | p2、九页论文整本及每个 DP engine 的成功请求增量；首次请求前计数器可不存在 |
 | `test_live_api_pdfs.py` | `MINERU_RUN_API_PDFS=1` | 部署 API 的同步/普通任务/two-stage，以及从 p2 文本构造的 DOCX 转换 |
 | `test_batch_input_pdfs.py` | `MINERU_RUN_BATCH_PDFS=1` | 三个批量模式的 p2/九页论文整本、JSON 结果及续跑 |
 

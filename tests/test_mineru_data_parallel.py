@@ -1,4 +1,4 @@
-"""Opt-in PDF regression proving all three vLLM replicas perform inference."""
+"""Opt-in PDF regression proving each vLLM data-parallel replica performs inference."""
 
 import json
 import os
@@ -14,7 +14,7 @@ pytestmark = [
     pytest.mark.mineru_integration,
     pytest.mark.skipif(
         os.getenv("MINERU_RUN_DP_PDFS") != "1",
-        reason="Set MINERU_RUN_DP_PDFS=1 with a three-GPU model service",
+        reason="Set MINERU_RUN_DP_PDFS=1 with a multi-GPU model service",
     ),
 ]
 
@@ -34,7 +34,7 @@ def _successes(url):
     return counts
 
 
-def test_input_pdfs_reach_all_three_data_parallel_replicas(tmp_path):
+def test_input_pdfs_reach_all_data_parallel_replicas(tmp_path):
     source_dir = Path(os.getenv("MINERU_TEST_INPUT_DIR", Path(__file__).parents[1] / "input"))
     sources = [
         (source_dir / "p2.pdf", 2),
@@ -47,7 +47,10 @@ def test_input_pdfs_reach_all_three_data_parallel_replicas(tmp_path):
     assert all(path.is_file() for path, _ in sources)
     url = os.getenv("MINERU_TEST_VLM_URL", "http://127.0.0.1:30000")
     before = _successes(url)
-    assert set(before) == {"0", "1", "2"}, "Expected three data-parallel engines"
+    dp_size = int(os.getenv("MINERU_TEST_DP_SIZE", "3"))
+    assert dp_size > 0
+    expected = {str(rank) for rank in range(dp_size)}
+    assert set(before) <= expected, f"Unexpected data-parallel engines: {set(before) - expected}"
     for path, pages in sources:
         items, output, _ = parse_doc([path], tmp_path, tier="advanced", server_url=url)
         assert {item["page_idx"] for item in items} == set(range(pages))
@@ -59,7 +62,8 @@ def test_input_pdfs_reach_all_three_data_parallel_replicas(tmp_path):
             assert "项目名称" in tables and "1600" in tables
             assert "■公开竞争" in tables.replace("☑", "■").replace(" ", "").replace("\n", "")
     after = _successes(url)
-    delta = {rank: after[rank] - before[rank] for rank in before}
+    assert set(after) == expected, f"Expected data-parallel engines {expected}"
+    delta = {rank: after[rank] - before.get(rank, 0) for rank in expected}
     (tmp_path / "replica-requests.json").write_text(
         json.dumps({"before": before, "after": after, "delta": delta})
     )

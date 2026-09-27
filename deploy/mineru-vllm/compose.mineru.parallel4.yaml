@@ -15,12 +15,13 @@ services:
       - "4"
       - --tensor-parallel-size
       - "1"
-      - --gpu-memory-utilization
-      - "${MINERU_DOCKER_GPU_MEMORY:-0.45}"
       - --max-model-len
       - "8192"
       - --max-num-seqs
       - "16"
+    environment:
+      MINERU_DOCKER_GPU_MEMORY: ${MINERU_DOCKER_GPU_MEMORY_MODEL4:-0.45}
+      MINERU_DOCKER_KV_CACHE_MEMORY_BYTES: ${MINERU_DOCKER_KV_CACHE_MEMORY_BYTES_MODEL4-3221225472}
     deploy:
       resources:
         reservations:

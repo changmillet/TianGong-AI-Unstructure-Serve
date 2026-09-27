@@ -62,6 +62,8 @@ uv run --group dev pytest
 
 MinerU 4.0.7 的 `full` extra 声明 `vllm>=0.19.1,<0.29.0`。模型镜像默认使用已验收的 vLLM 0.21.0；0.28.0 是这一范围内的最新稳定版，可通过私有环境配置覆盖镜像及版本校验参数。更换 vLLM 同时更换 Torch/CUDA 与推理实现，需检查 CUDA、MinerU logits processor、全部 DP 副本和真实 PDF。vLLM 0.28.0 对当前 MinerU2.5 Pro 2605-1.2B 权重必须显式设置顶层 `tie_word_embeddings=true`，否则真实生成会退化为重复符号并产生空解析；Compose 的 `--hf-overrides` 默认设置该值。vLLM 0.28.0 要求镜像内 FastAPI `>=0.133,<0.137`；可用 `MINERU_DOCKER_FASTAPI_VERSION=0.136.3`、`MINERU_DOCKER_STARLETTE_VERSION=1.6.0` 选择与该基底兼容的版本，构建时运行 `pip check`。不要把模型环境版本写入应用锁文件。版本依据为 [MinerU 4.0.7 包元数据](https://pypi.org/pypi/mineru/4.0.7/json)和 [vLLM 0.28.0 发行说明](https://github.com/vllm-project/vllm/releases/tag/v0.28.0)。
 
+vLLM 0.21.0 和 0.28.0 都支持 `--kv-cache-memory-bytes`。容器入口按私有 `.env` 选择固定 KV 字节数或显存比例，无需为切换预算修改镜像依赖；具体键及验证见[部署说明](mineru_4_upgrade_usage.md#docker-与多卡)。
+
 MinerU 4.0.7 要求 DocVortex 至少 0.4.24、mineru-vl-utils 至少 2.0.5；应用锁文件和模型镜像分别固定为 0.4.25、2.0.5。ONNX 会话在没有显式线程设置时读取 `MINERU_INTRA_OP_NUM_THREADS` / `MINERU_INTER_OP_NUM_THREADS`，上游最终回退为 4/1；本项目部署模板显式使用 16/1。资产文件名由 SDK 保存后的引用决定，不能依赖旧哈希命名；升级须验证真实图片可解码、分辨率和下游视觉筛选。变更依据见 [4.0.7 发行说明](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.7-released)。
 
 ## Python 版本选择
