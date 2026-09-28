@@ -15,6 +15,11 @@ _BOILERPLATE_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 _SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
+UNRECOGNIZED_IMAGE_TEXT = "[图片内容无法识别]"
+
+
+class UnusableVisionOutput(ValueError):
+    """A model response has no usable image content after normalization."""
 
 
 def clean_text(text: str) -> str:
@@ -67,7 +72,7 @@ def sanitize_vision_text(text: str, *, strip_boilerplate: bool = True) -> str:
     if strip_boilerplate:
         cleaned = _THINK_PREFIX_RE.sub("", cleaned)
         if cleaned.lower().startswith("<think>"):
-            raise ValueError("Incomplete vision reasoning block")
+            raise UnusableVisionOutput("Incomplete vision reasoning block")
         cleaned = _BOILERPLATE_PREFIX_RE.sub("", cleaned)
         cleaned = _IMAGE_PREFIX_RE.sub("", cleaned)
         cleaned = _PAGE_MARKER_RE.sub("", cleaned)
@@ -75,8 +80,23 @@ def sanitize_vision_text(text: str, *, strip_boilerplate: bool = True) -> str:
     lines = [line.strip() for line in cleaned.splitlines()]
     result = "\n".join(lines).strip()
     if strip_boilerplate and not result:
-        raise ValueError("Vision output contains no facts after removing wrappers")
+        raise UnusableVisionOutput("Vision output contains no facts after removing wrappers")
     return result
 
 
-__all__ = ["build_plain_text", "clean_text", "sanitize_vision_text"]
+def validate_vision_output(text: str) -> None:
+    """Reject responses that the normal image path cannot use as facts."""
+    if not isinstance(text, str) or not text.strip():
+        raise UnusableVisionOutput("Vision endpoint returned empty content")
+    if not sanitize_vision_text(clean_text(text)):
+        raise UnusableVisionOutput("Vision output contains no facts after removing wrappers")
+
+
+__all__ = [
+    "UNRECOGNIZED_IMAGE_TEXT",
+    "UnusableVisionOutput",
+    "build_plain_text",
+    "clean_text",
+    "sanitize_vision_text",
+    "validate_vision_output",
+]

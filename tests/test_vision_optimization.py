@@ -3,7 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.utils.text_output import sanitize_vision_text
+from src.utils.text_output import (
+    UNRECOGNIZED_IMAGE_TEXT,
+    UnusableVisionOutput,
+    sanitize_vision_text,
+)
 import src.services.mineru_with_images_service as images
 import src.services.vision_service_openai_compatible as compatible
 from src.services.vision_prompts import build_vision_prompt
@@ -46,9 +50,14 @@ def test_prompt_preserves_facts_and_custom_ocr():
 
 
 @pytest.mark.parametrize(
-    "reason, content", [("length", "partial 52"), ("stop", ""), ("stop", None)]
+    "reason, content, error",
+    [
+        ("length", "partial 52", RuntimeError),
+        ("stop", "", UnusableVisionOutput),
+        ("stop", None, UnusableVisionOutput),
+    ],
 )
-def test_compatible_rejects_incomplete_or_empty_output(monkeypatch, reason, content):
+def test_compatible_rejects_incomplete_or_empty_output(monkeypatch, reason, content, error):
     monkeypatch.setattr(compatible, "encode_image", lambda _: "base64")
     response = SimpleNamespace(
         choices=[SimpleNamespace(finish_reason=reason, message=SimpleNamespace(content=content))]
@@ -57,7 +66,7 @@ def test_compatible_rejects_incomplete_or_empty_output(monkeypatch, reason, cont
         chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: response))
     )
     pool = SimpleNamespace(get_client=lambda: client)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(error):
         compatible.vision_completion_openai_compatible(
             "x.jpg", default_model="model", client_pool=pool
         )
@@ -99,3 +108,30 @@ def test_image_window_refills_before_slow_first_image_finishes(monkeypatch, tmp_
 def test_wrapper_only_output_fails_instead_of_falling_back_to_caption(text):
     with pytest.raises(ValueError, match="no facts"):
         sanitize_vision_text(text)
+
+
+def test_unrecognized_image_is_marked_and_other_images_continue(monkeypatch, tmp_path):
+    contents = []
+    for index in range(2):
+        path = tmp_path / f"{index}.jpg"
+        path.write_bytes(f"image {index}".encode())
+        contents.append({"type": "image", "img_path": path.name, "page_idx": index})
+
+    def vision(path, *args):
+        if path.endswith("0.jpg"):
+            raise UnusableVisionOutput("no usable facts")
+        return "Visible value: 42"
+
+    monkeypatch.setattr(images, "vision_completion", vision)
+    result = images._run_image_vision(contents, str(tmp_path))
+    assert result[id(contents[0])] == UNRECOGNIZED_IMAGE_TEXT
+    assert result[id(contents[1])] == "Visible value: 42"
+
+
+def test_strict_ocr_marks_empty_output_without_removing_literal_text(monkeypatch, tmp_path):
+    path = tmp_path / "image.jpg"
+    path.write_bytes(b"image")
+    item = {"type": "image", "img_path": path.name, "page_idx": 0}
+    monkeypatch.setattr(images, "vision_completion", lambda *args: "")
+    result = images._run_image_vision([item], str(tmp_path), strict_ocr_only=True)
+    assert result[id(item)] == UNRECOGNIZED_IMAGE_TEXT

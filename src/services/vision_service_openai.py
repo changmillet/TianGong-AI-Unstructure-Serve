@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 
 from src.config.config import OPENAI_API_KEY
 from src.services.vision_service_openai_compatible import (
@@ -15,6 +15,7 @@ def vision_completion_openai(
     context: str = "",
     model: Optional[str] = None,
     prompt: Optional[str] = None,
+    output_validator: Optional[Callable[[str], None]] = None,
 ) -> str:
     if not _CLIENT_POOL.has_clients():
         raise RuntimeError("OpenAI vision client is not configured. Set OPENAI_API_KEY.")
@@ -25,4 +26,5 @@ def vision_completion_openai(
         prompt=prompt,
         default_model=DEFAULT_VISION_MODEL,
         client_pool=_CLIENT_POOL,
+        output_validator=output_validator,
     )

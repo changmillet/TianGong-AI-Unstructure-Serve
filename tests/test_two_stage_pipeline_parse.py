@@ -136,6 +136,20 @@ def test_vision_task_raises_when_completion_fails(monkeypatch):
         two_stage_pipeline.vision_task.run(job, provider="vllm", model="demo-model")
 
 
+def test_vision_task_marks_unrecognized_image(monkeypatch):
+    from src.utils.text_output import UNRECOGNIZED_IMAGE_TEXT, UnusableVisionOutput
+
+    def no_content(*args, **kwargs):
+        raise UnusableVisionOutput("no usable facts")
+
+    monkeypatch.setattr(two_stage_pipeline, "vision_completion", no_content)
+    job = {"seq": 7, "img_path": "/tmp/fake.jpg", "context_payload": "ctx"}
+    assert two_stage_pipeline.vision_task.run(job) == {
+        "seq": 7,
+        "vision_text": UNRECOGNIZED_IMAGE_TEXT,
+    }
+
+
 def test_two_stage_merge_keeps_mineru_reading_order_when_chunk_type_enabled():
     content_list = [
         {"type": "header", "text": "Page 1 header", "page_idx": 0},

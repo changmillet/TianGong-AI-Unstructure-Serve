@@ -50,7 +50,7 @@ uv run celery -A src.services.celery_app worker \
 | `provider` / `model` / `prompt` | form，仅图片接口 | 可选图片描述设置；通常使用服务配置 |
 
 - 一直 PENDING：检查 `celery-worker` 是否在线、`active_queues` 是否包含 `queue_urgent,queue_normal`、API/worker 是否使用同一个 Redis DB；仅有 two-stage worker 不会消费这些任务。
-- 任务 FAILURE：查看返回 `error` 和 `pm2 logs celery-worker`。重点检查 Docker MinerU 端点 `MINERU_MODEL_VLM_SERVER_URL`、独立视觉端点 `VLLM_BASE_URLS`、CPU 模型文件、LibreOffice、共享任务目录和任务超时。
+- 任务 FAILURE：查看返回 `error` 和 `pm2 logs celery-worker`。重点检查 Docker MinerU 端点 `MINERU_MODEL_VLM_SERVER_URL`、独立视觉端点 `VLLM_BASE_URLS`、CPU 模型文件、LibreOffice、共享任务目录和任务超时。若备选耗尽后仅无可用内容，该图片 text 会包含 `[图片内容无法识别]`，任务继续；仍有连接、截断、请求或资产故障则须排查，修复后用原 ID 的 `/tasks/{id}/resume` 复用已完成检查点。
 - 入队前 422：检查 tier 和请求字段类型；普通图片接口不会因为未知 provider/model 直接 422。
 - 调整 worker 前查看 `inspect active`、`inspect reserved` 和 `inspect active_queues`；上传工作区需等任务完成后按具体任务清理。不要把整个共享临时目录当作普通任务的独占目录。
 

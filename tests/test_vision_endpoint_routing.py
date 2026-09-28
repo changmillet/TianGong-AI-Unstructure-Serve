@@ -6,6 +6,7 @@ import pytest
 
 from src.services import vision_service_openai_compatible as compatible
 from src.services import vision_service_vllm as vllm
+from src.utils.text_output import UnusableVisionOutput, validate_vision_output
 
 
 @pytest.fixture(autouse=True)
@@ -31,9 +32,9 @@ def _pool(monkeypatch, functions):
     return pool
 
 
-def _response():
+def _response(content="52%"):
     return SimpleNamespace(
-        choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content="52%"))]
+        choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content=content))]
     )
 
 
@@ -88,6 +89,46 @@ def test_failover_prepares_image_once_and_preserves_png_mime(tmp_path, monkeypat
     )
 
 
+def test_wrapper_only_response_switches_endpoints_without_reencoding(monkeypatch):
+    calls = []
+    encoded = []
+    monkeypatch.setattr(compatible, "encode_image", lambda path: encoded.append(path) or "abc")
+
+    def wrapper_only(**payload):
+        calls.append("wrapper")
+        return _response("Image Description: [Page 300] [ChunkType=Image]")
+
+    def useful(**payload):
+        calls.append("useful")
+        return _response("[图片内容：二维码]")
+
+    pool = _pool(monkeypatch, [wrapper_only, useful])
+    monkeypatch.setattr(
+        pool,
+        "get_endpoint_clients",
+        lambda: [("0" * 64, pool._clients[0]), ("1" * 64, pool._clients[1])],
+    )
+
+    result = vllm.vision_completion_vllm("fixture.jpg", output_validator=validate_vision_output)
+    assert result == "[图片内容：二维码]"
+    assert calls == ["wrapper", "useful"]
+    assert encoded == ["fixture.jpg"]
+
+
+def test_all_wrapper_only_endpoints_still_fail(monkeypatch):
+    calls = []
+    monkeypatch.setattr(compatible, "encode_image", lambda _: "abc")
+
+    def wrapper_only(**payload):
+        calls.append(payload)
+        return _response("<think>no answer</think>\nImage Description: [Page 1]")
+
+    _pool(monkeypatch, [wrapper_only, wrapper_only])
+    with pytest.raises(UnusableVisionOutput, match="no usable facts"):
+        vllm.vision_completion_vllm("fixture.jpg", output_validator=validate_vision_output)
+    assert len(calls) == 2
+
+
 def test_bad_request_is_not_retried_on_other_endpoints(monkeypatch):
     calls = []
     monkeypatch.setattr(compatible, "encode_image", lambda _: "abc")
@@ -138,7 +179,7 @@ def test_connection_failure_cools_endpoint_for_next_call(monkeypatch, failure):
     assert calls == ["flaky", "healthy", "healthy"]
 
 
-@pytest.mark.parametrize("fault", ["empty", "truncated"])
+@pytest.mark.parametrize("fault", ["empty", "truncated", "wrappers"])
 def test_unusable_half_open_response_does_not_restore_parallel_traffic(monkeypatch, fault):
     from src.services.vision_capacity import EndpointScheduler
 
@@ -149,14 +190,16 @@ def test_unusable_half_open_response_does_not_restore_parallel_traffic(monkeypat
         response = _response()
         if fault == "empty":
             response.choices[0].message.content = ""
-        else:
+        elif fault == "truncated":
             response.choices[0].finish_reason = "length"
+        else:
+            response.choices[0].message.content = "Image Description: [Page 1]"
         return response
 
     pool = _pool(monkeypatch, [unusable])
     key = pool.get_endpoint_clients()[0][0]
     scheduler = EndpointScheduler.from_env()
     scheduler.mark_failed(key)
-    with pytest.raises(RuntimeError, match="All configured"):
-        vllm.vision_completion_vllm("fixture.jpg")
+    with pytest.raises((RuntimeError, UnusableVisionOutput), match="All configured"):
+        vllm.vision_completion_vllm("fixture.jpg", output_validator=validate_vision_output)
     assert scheduler.health_snapshot([key])[0]["circuit"] == "recovery"

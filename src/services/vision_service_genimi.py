@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 
 from PIL import Image
 from google import genai
@@ -22,6 +22,7 @@ def vision_completion_genimi(
     context: str = "",
     model: Optional[str] = None,
     prompt: Optional[str] = None,
+    output_validator: Optional[Callable[[str], None]] = None,
 ) -> str:
     image = Image.open(image_path)
     prompt_text = build_vision_prompt(context, prompt)
@@ -31,4 +32,7 @@ def vision_completion_genimi(
         contents=[image, prompt_text],
     )
 
-    return response.text
+    text = response.text
+    if output_validator is not None:
+        output_validator(text)
+    return text

@@ -40,13 +40,21 @@ def test_literal_page_references_remain_distinct_in_every_image_mode(tmp_path, m
         assert len(jobs) == 2
         assert [x["__image_seq"] for x in annotated if x["type"] == "image"] == [1, 2, 1]
     requests = []
+    validation_flags = []
+
+    def fake_vision(image, context, prompt, provider, model, validate_output):
+        requests.append(context)
+        validation_flags.append(validate_output)
+        return "Measured 52%"
+
     monkeypatch.setattr(
         images,
         "vision_completion",
-        lambda image, context, *args: requests.append(context) or "Measured 52%",
+        fake_vision,
     )
     result = images._run_image_vision(content, str(tmp_path))
     assert len(requests) == 2 and len(result) == 3
+    assert validation_flags == [True, True]
 
 
 def test_cache_hash_never_removes_any_supplied_printed_text():
@@ -84,10 +92,17 @@ def test_custom_and_strict_ocr_requests_keep_generated_positions(tmp_path, monke
         jobs, _ = build(deepcopy(content), str(tmp_path), keep_positions=True)
         assert len(jobs) == 3
     requests = []
+    validation_flags = []
+
+    def fake_vision(image, context, prompt, provider, model, validate_output):
+        requests.append(context)
+        validation_flags.append(validate_output)
+        return "Measured 52%"
+
     monkeypatch.setattr(
         images,
         "vision_completion",
-        lambda image, context, *args: requests.append(context) or "Measured 52%",
+        fake_vision,
     )
     images._run_image_vision(
         content,
@@ -96,6 +111,7 @@ def test_custom_and_strict_ocr_requests_keep_generated_positions(tmp_path, monke
         strict_ocr_only=strict,
     )
     assert len(requests) == 3
+    assert validation_flags == [not strict] * 3
     assert all(
         any(f"[Page {page}] [ChunkType=Body]" in context for context in requests)
         for page in range(1, 4)

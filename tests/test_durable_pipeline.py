@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.services import job_store
+from src.utils.text_output import UNRECOGNIZED_IMAGE_TEXT, UnusableVisionOutput
 
 
 def _pipeline():
@@ -116,6 +117,60 @@ def test_vision_failure_resumes_only_missing_image(prepared, monkeypatch):
     pipeline.run_durable_job({"job_id": ref["job_id"], "generation": resumed["generation"]})
     assert calls["parse"] == 1
     assert sorted(calls["vision"]) == ["1.png", "2.png"]
+
+
+def test_unrecognized_image_is_checkpointed_without_failing_document(prepared, monkeypatch):
+    pipeline, ref, calls = prepared()
+    monkeypatch.setenv("VISION_BATCH_SIZE", "1")
+    initial_vision = pipeline.vision_completion
+    attempts = []
+
+    def maybe_unrecognized(path, *args, **kwargs):
+        attempts.append(Path(path).name)
+        if Path(path).name == "2.png":
+            raise UnusableVisionOutput("no usable facts")
+        return initial_vision(path, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline, "vision_completion", maybe_unrecognized)
+    pipeline.run_durable_job(ref)
+    result = job_store.read_result(ref["job_id"])
+    marked = [item for item in result["result"] if UNRECOGNIZED_IMAGE_TEXT in item["text"]]
+    assert job_store.status(ref["job_id"])["state"] == "SUCCESS"
+    assert len(marked) == 1 and marked[0]["page_number"] == 2
+    assert UNRECOGNIZED_IMAGE_TEXT in result["txt"]
+    checkpoint = job_store.read_json(job_store.job_dir(ref["job_id"]) / "vision/2.json")
+    assert checkpoint["vision_text"] == UNRECOGNIZED_IMAGE_TEXT
+    pipeline.run_durable_job(ref)
+    assert attempts == ["1.png", "2.png"]
+    assert calls["parse"] == 1
+
+
+def test_version_one_checkpoints_resume_with_unrecognized_marker(prepared, monkeypatch):
+    pipeline, ref, calls = prepared()
+    pipeline.ensure_parsed(ref)
+    path = job_store.job_dir(ref["job_id"]) / "parse/manifest.json"
+    manifest = job_store.read_json(path)
+    legacy_settings = {**manifest["profile"]["settings"], "version": 1}
+    manifest["profile"] = {
+        "settings": legacy_settings,
+        "sha256": pipeline._value_digest(legacy_settings),
+    }
+    job_store.atomic_json(path, manifest)
+    pipeline.run_vision({**ref, "seq": 1})
+    job_store.fail_job(ref["job_id"], RuntimeError("old image failed"))
+    resumed = job_store.resume_job(ref["job_id"])
+
+    def no_content(path, *args, **kwargs):
+        if Path(path).name == "2.png":
+            raise UnusableVisionOutput("no usable facts")
+        return "unexpected repeated call"
+
+    monkeypatch.setattr(pipeline, "vision_completion", no_content)
+    pipeline.run_durable_job({"job_id": ref["job_id"], "generation": resumed["generation"]})
+    result = job_store.read_result(ref["job_id"])
+    assert job_store.status(ref["job_id"])["state"] == "SUCCESS"
+    assert UNRECOGNIZED_IMAGE_TEXT in result["result"][2]["text"]
+    assert calls == {"parse": 1, "vision": ["1.png"]}
 
 
 def test_obsolete_generation_cannot_parse_or_write_failure(prepared):

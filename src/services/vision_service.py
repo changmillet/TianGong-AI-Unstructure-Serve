@@ -14,6 +14,7 @@ from src.services.vision_service_vllm import (
     has_vllm_credentials,
     vision_completion_vllm,
 )
+from src.utils.text_output import UnusableVisionOutput, validate_vision_output
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,7 @@ class ProviderSpec:
     key: str
     models: List[str]
     default_model: str
-    call: Callable[[str, str, Optional[str], Optional[str]], str]
+    call: Callable[[str, str, Optional[str], Optional[str], Optional[Callable[[str], None]]], str]
     has_credentials: Callable[[], bool]
 
 
@@ -281,23 +282,27 @@ def vision_completion(
     prompt: Optional[str] = None,
     provider: Optional[Union[VisionProvider, str]] = None,
     model: Optional[Union[VisionModel, str]] = None,
+    validate_output: bool = True,
 ) -> str:
     requested_provider, requested_model = _normalize_request_overrides(provider, model)
     chosen = _resolve_provider(requested_provider)
     resolved_model = _resolve_model(chosen, requested_model)
     chosen_spec = PROVIDER_SPECS[chosen.value]
+    output_validator = validate_vision_output if validate_output else None
 
     result: Optional[str] = None
+    failures: List[Exception] = []
 
     if chosen_spec.has_credentials():
         logger.info(f"Vision request using provider='{chosen.value}' model='{resolved_model}'")
         try:
-            result = chosen_spec.call(image_path, context, resolved_model, prompt)
+            result = chosen_spec.call(image_path, context, resolved_model, prompt, output_validator)
             if result is not None:
                 logger.info(
                     f"Vision response received from provider='{chosen.value}' model='{resolved_model}'"
                 )
         except Exception as exc:  # noqa: BLE001 - provider call may raise
+            failures.append(exc)
             logger.info(f"Vision provider '{chosen.value}' failed: {exc}")
     else:
         logger.info(
@@ -316,15 +321,20 @@ def vision_completion(
         fallback_model = DEFAULT_MODELS.get(backup, backup_spec.default_model)
         logger.info(f"Vision fallback to provider='{backup.value}' model='{fallback_model}'")
         try:
-            fallback_result = backup_spec.call(image_path, context, fallback_model, prompt)
+            fallback_result = backup_spec.call(
+                image_path, context, fallback_model, prompt, output_validator
+            )
             if fallback_result is not None:
                 logger.info(
                     f"Vision response received from provider='{backup.value}' model='{fallback_model}'"
                 )
                 return fallback_result
         except Exception as exc:  # noqa: BLE001 - provider call may raise
+            failures.append(exc)
             logger.info(f"Vision provider '{backup.value}' failed: {exc}")
 
+    if failures and all(isinstance(exc, UnusableVisionOutput) for exc in failures):
+        raise failures[-1]
     raise RuntimeError(
         "No working vision provider found. Ensure provider configuration and API keys are set."
     )

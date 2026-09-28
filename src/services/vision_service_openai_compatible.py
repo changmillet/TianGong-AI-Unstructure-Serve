@@ -1,13 +1,14 @@
 import base64
 import mimetypes
 from threading import Lock
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import httpx
 from openai import OpenAI
 
 from src.services.vision_prompts import build_vision_messages
 from src.services.vision_capacity import endpoint_key
+from src.utils.text_output import UnusableVisionOutput
 
 
 def encode_image(image_path: str) -> str:
@@ -114,6 +115,7 @@ def vision_completion_openai_compatible(
     extra_body: Optional[Dict[str, Any]] = None,
     request_options: Optional[Dict[str, Any]] = None,
     prepared_request: Optional[Dict[str, Any]] = None,
+    output_validator: Optional[Callable[[str], None]] = None,
 ) -> str:
     client = client_pool.get_client()
     request_payload = (
@@ -141,5 +143,7 @@ def vision_completion_openai_compatible(
         raise RuntimeError(f"Vision output is incomplete (finish_reason={finish_reason})")
     content = choice.message.content
     if not isinstance(content, str) or not content.strip():
-        raise RuntimeError("Vision endpoint returned empty content")
+        raise UnusableVisionOutput("Vision endpoint returned empty content")
+    if output_validator is not None:
+        output_validator(content)
     return content

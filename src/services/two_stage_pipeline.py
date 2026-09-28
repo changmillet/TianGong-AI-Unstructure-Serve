@@ -56,7 +56,12 @@ from src.services.mineru_with_images_service import (
 )
 from src.services.vision_service import VisionModel, VisionProvider, vision_completion
 from src.services.vision_prompts import vision_request_key
-from src.utils.text_output import build_plain_text, sanitize_vision_text
+from src.utils.text_output import (
+    UNRECOGNIZED_IMAGE_TEXT,
+    UnusableVisionOutput,
+    build_plain_text,
+    sanitize_vision_text,
+)
 
 MIN_IMAGE_AREA_RATIO = 0.01
 MIN_IMAGE_AREA_RATIO_WITH_CAPTION = 0.005
@@ -514,17 +519,22 @@ def vision_task(
     seq = job.get("seq")
     prompt_override = _normalize_prompt(prompt)
     try:
-        vision_text = sanitize_vision_text(
-            clean_text(
-                vision_completion(
-                    job["img_path"],
-                    job.get("context_payload", "") or "",
-                    prompt=prompt_override,
-                    provider=provider,
-                    model=model,
+        try:
+            vision_text = sanitize_vision_text(
+                clean_text(
+                    vision_completion(
+                        job["img_path"],
+                        job.get("context_payload", "") or "",
+                        prompt=prompt_override,
+                        provider=provider,
+                        model=model,
+                    )
                 )
             )
-        )
+            if not vision_text:
+                raise UnusableVisionOutput("Vision result was empty after normalization")
+        except UnusableVisionOutput:
+            vision_text = UNRECOGNIZED_IMAGE_TEXT
         return {"seq": seq, "vision_text": vision_text}
     except Exception as exc:  # noqa: BLE001 - external call may fail
         logger.info("Vision call failed for seq={}: {}", seq, type(exc).__name__)

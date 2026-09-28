@@ -34,7 +34,7 @@ uv run --group dev pytest
 `test_mineru_deployment.py` 验证 Compose 的三卡/四卡默认每卡固定 3 GiB KV、拓扑专属覆盖与显式空值回退、PM2 不覆盖私有配置、旧进程环境在模型启动器中被清除、已有最终镜像免构建且禁止拉取、缺失镜像走构建路径，以及容器入口始终传启动检查比例、固定 KV 时再传 KV 字节数。它只验证参数组装；共享 GPU 的真实峰值和 PDF 正确性仍须运行下方验收。
 Compose 配置测试的临时 `--env-file` 写入 Git 忽略的 `output` 并在测试后删除；Snap Docker 看不到宿主 pytest 默认的 `/tmp`，将文件放在该处会让配置检查直接失败。
 
-`test_vision_capacity_http.py` 使用本地真实 TCP/HTTP 连接模拟 TLS 握手不响应和 HTTP 503，验证快速切换、跨调用冷却及恢复后重新分配；正常响应刻意晚于连接预算，确保不会误用短预算截断推理。该测试的响应是固定样本，模型质量仍须使用下面的真实 PDF 验收。`test_vision_health.py` 覆盖探测鉴权/前缀、有限兼容回退、模型匹配、总超时、禁止重定向、跨实例 leader 租约、状态过期和关闭时取消；健康成功不得直接恢复并发。
+`test_vision_capacity_http.py` 使用本地真实 TCP/HTTP 连接模拟 TLS 握手不响应和 HTTP 503，验证快速切换、跨调用冷却及恢复后重新分配；正常响应刻意晚于连接预算，确保不会误用短预算截断推理。`test_vision_endpoint_routing.py` 另以固定响应验证普通图片清理后空内容在同一次调用中切换、只编码图片一次、全部端点无内容及半开不误恢复；图片流程测试验证仅无内容时写入 `[图片内容无法识别]` 并继续，连接故障仍失败，严格 OCR 不执行普通图片清理。固定响应不能证明小图或二维码的真实识别质量，仍须使用下面的真实 PDF 验收。`test_vision_health.py` 覆盖探测鉴权/前缀、有限兼容回退、模型匹配、总超时、禁止重定向、跨实例 leader 租约、状态过期和关闭时取消；健康成功不得直接恢复并发。
 
 持久任务的针对性测试包括 `test_durable_jobs.py`、`test_durable_pipeline.py`、`test_job_api.py` 和 `test_manage_jobs.py`：覆盖发布结果不明、元数据落盘失败、旧代消息、逐阶段复用、文件校验、下载租约与保留期清理。共享视觉容量包含真实 fork/spawn/进程死亡、跨进程半开独占、失败后继续熔断及旧在途成功不能覆盖新故障，以及本地 HTTP fixture；只有显式模型回归才算实际推理。
 

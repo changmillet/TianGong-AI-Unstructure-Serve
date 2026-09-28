@@ -1,6 +1,6 @@
 import os
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import httpx
 from loguru import logger
@@ -13,6 +13,7 @@ from src.services.vision_service_openai_compatible import (
     vision_completion_openai_compatible,
 )
 from src.services.vision_capacity import EndpointScheduler
+from src.utils.text_output import UnusableVisionOutput
 
 DEFAULT_VISION_MODEL = "nv-community/Qwen3.8-Flash-Next-NVFP4"
 _FALLBACK_API_KEY = "not-required"
@@ -169,6 +170,7 @@ def vision_completion_vllm(
     context: str = "",
     model: Optional[str] = None,
     prompt: Optional[str] = None,
+    output_validator: Optional[Callable[[str], None]] = None,
 ) -> str:
     if not _CLIENT_POOL.has_clients():
         raise RuntimeError(
@@ -178,6 +180,7 @@ def vision_completion_vllm(
 
     errors: List[str] = []
     last_error: Optional[Exception] = None
+    all_unusable = True
     clients = dict(_CLIENT_POOL.get_endpoint_clients())
     scheduler = EndpointScheduler.from_env()
     request_options, extra_body = _build_request_options(), _build_extra_body()
@@ -206,10 +209,14 @@ def vision_completion_vllm(
                     extra_body=extra_body,
                     request_options=request_options,
                     prepared_request=prepared,
+                    output_validator=output_validator,
                 )
             except Exception as exc:  # noqa: BLE001 - upstream client may fail
                 # These failures belong to the request/configuration, not endpoint capacity.
-                if isinstance(exc, (ValueError, FileNotFoundError)) or (
+                if (
+                    isinstance(exc, (ValueError, FileNotFoundError))
+                    and not isinstance(exc, UnusableVisionOutput)
+                ) or (
                     isinstance(exc, APIStatusError)
                     and exc.status_code not in (408, 429)
                     and exc.status_code < 500
@@ -219,11 +226,16 @@ def vision_completion_vllm(
                 # only restores traffic after a complete, validated response.
                 scheduler.mark_failed(key)
                 last_error = exc
+                all_unusable = all_unusable and isinstance(exc, UnusableVisionOutput)
                 errors.append(type(exc).__name__)
                 logger.warning(
                     "vLLM vision attempt {}/{} failed: {}", attempt, total, type(exc).__name__
                 )
 
     assert last_error is not None
+    if all_unusable:
+        raise UnusableVisionOutput(
+            "All configured vLLM vision endpoints returned no usable facts"
+        ) from last_error
     detail = "; ".join(errors)
     raise RuntimeError(f"All configured vLLM vision endpoints failed: {detail}") from last_error

@@ -23,7 +23,11 @@ from src.services.mineru_with_images_service import (
 from src.services.vision_prompts import vision_request_key
 from src.services.vision_service import vision_completion
 from src.utils.file_conversion import maybe_convert_to_pdf
-from src.utils.text_output import sanitize_vision_text
+from src.utils.text_output import (
+    UNRECOGNIZED_IMAGE_TEXT,
+    UnusableVisionOutput,
+    sanitize_vision_text,
+)
 from src.utils.mineru_backend import resolve_tier
 
 
@@ -74,7 +78,8 @@ def _execution_profile(record):
 
     options = record["options"]
     details = {
-        "version": 1,
+        # Vision version 2 adds an explicit per-image marker for unusable content.
+        "version": 1 if record["mode"] == "parse" else 2,
         "mineru": version("mineru"),
         "docvortex": version("docvortex"),
         "tier": resolve_tier(options.get("backend")),
@@ -119,10 +124,19 @@ def _execution_profile(record):
 
 
 def _assert_profile(record, manifest):
-    if manifest.get("profile", {}).get("sha256") != _execution_profile(record)["sha256"]:
-        raise RuntimeError(
-            "Stored execution profile differs; restore its model/settings or submit a new job"
-        )
+    stored = manifest.get("profile", {})
+    current = _execution_profile(record)
+    if stored.get("sha256") == current["sha256"]:
+        return
+    if record["mode"] != "parse":
+        # Version 1 successful image text has the same meaning. Only previously
+        # missing images may now produce a marker; reuse completed checkpoints.
+        legacy = {**current["settings"], "version": 1}
+        if stored.get("settings") == legacy and stored.get("sha256") == _value_digest(legacy):
+            return
+    raise RuntimeError(
+        "Stored execution profile differs; restore its model/settings or submit a new job"
+    )
 
 
 def _file(job_id, relative):
@@ -338,19 +352,22 @@ def run_vision(ref):
         if _digest(image) != job["asset_sha256"]:
             raise RuntimeError("Stored vision asset failed integrity verification")
         options = record["options"]
-        text = sanitize_vision_text(
-            clean_text(
-                vision_completion(
-                    str(image),
-                    job.get("context_payload", ""),
-                    prompt=(options.get("prompt") or "").strip() or None,
-                    provider=options.get("vision_provider"),
-                    model=options.get("vision_model"),
+        try:
+            text = sanitize_vision_text(
+                clean_text(
+                    vision_completion(
+                        str(image),
+                        job.get("context_payload", ""),
+                        prompt=(options.get("prompt") or "").strip() or None,
+                        provider=options.get("vision_provider"),
+                        model=options.get("vision_model"),
+                    )
                 )
             )
-        )
-        if not text.strip():
-            raise RuntimeError("Vision result was empty after normalization")
+            if not text.strip():
+                raise UnusableVisionOutput("Vision result was empty after normalization")
+        except UnusableVisionOutput:
+            text = UNRECOGNIZED_IMAGE_TEXT
         _assert_profile(record, manifest)
         store.atomic_json(
             store.job_dir(job_id) / "vision" / f"{seq}.json",

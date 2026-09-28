@@ -8,7 +8,13 @@ from loguru import logger
 
 from src.models.models import ResponseWithPageNum, TextElementWithPageNum
 from src.services.mineru_service_full import parse_doc
-from src.utils.text_output import build_plain_text, clean_text, sanitize_vision_text
+from src.utils.text_output import (
+    UNRECOGNIZED_IMAGE_TEXT,
+    UnusableVisionOutput,
+    build_plain_text,
+    clean_text,
+    sanitize_vision_text,
+)
 from src.services.vision_service import (
     VisionModel,
     VisionProvider,
@@ -474,6 +480,7 @@ def _run_image_vision(
                 prompt_override,
                 vision_provider,
                 vision_model,
+                not strict_ocr_only,
             )
             futures[future] = job
 
@@ -487,9 +494,16 @@ def _run_image_vision(
                     seq = int(job["seq"])
                     page_number = int(job["page_number"])
                     try:
-                        vision_result = sanitize_vision_text(
-                            clean_text(future.result()), strip_boilerplate=not strict_ocr_only
-                        )
+                        try:
+                            vision_result = sanitize_vision_text(
+                                clean_text(future.result()), strip_boilerplate=not strict_ocr_only
+                            )
+                            if not vision_result:
+                                raise UnusableVisionOutput(
+                                    "Vision result was empty after normalization"
+                                )
+                        except UnusableVisionOutput:
+                            vision_result = UNRECOGNIZED_IMAGE_TEXT
                         combined_text = "\n".join(
                             part for part in (str(job["base_text"]), vision_result) if part
                         )
