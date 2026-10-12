@@ -8,6 +8,14 @@ from loguru import logger
 
 from src.models.models import ResponseWithPageNum, TextElementWithPageNum
 from src.services.mineru_service_full import parse_doc
+from src.services.content_projection import (
+    _image_captions as _image_captions,
+    _image_footnotes as _image_footnotes,
+    image_text as image_text,
+    table_text as table_text,
+    list_text as list_text,
+    project_legacy_content,
+)
 from src.utils.text_output import (
     UNRECOGNIZED_IMAGE_TEXT,
     UnusableVisionOutput,
@@ -72,66 +80,6 @@ STRICT_DOCX_IMAGE_OCR_PROMPT = (
     "output phrases such as 'Based on the context', 'The image shows', '根据上下文', "
     "'根据您提供的图片', or '以下是'."
 )
-
-
-def _coerce_text_parts(value: object) -> List[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        cleaned = clean_text(value)
-        return [cleaned] if cleaned.strip() else []
-    if isinstance(value, (list, tuple)):
-        parts: List[str] = []
-        for item in value:
-            parts.extend(_coerce_text_parts(item))
-        return parts
-    cleaned = clean_text(str(value))
-    return [cleaned] if cleaned.strip() else []
-
-
-def _image_captions(item: Dict, *, include_generated: bool = True) -> List[str]:
-    captions = _coerce_text_parts(item.get("img_caption") or item.get("image_caption"))
-    if not include_generated:
-        # The SDK adapter appends model-generated chart/diagram content to the
-        # legacy caption field. Keep the printed caption separate for vision.
-        for field in ("image_caption", "chart_caption"):
-            if field in item:
-                return _coerce_text_parts(item[field])
-        if captions and captions[-1] == item.get("content"):
-            captions = captions[:-1]
-    return captions
-
-
-def _image_footnotes(item: Dict) -> List[str]:
-    return _coerce_text_parts(item.get("img_footnote") or item.get("image_footnote"))
-
-
-def image_text(item: Dict, *, include_generated: bool = True) -> str:
-    captions = _image_captions(item, include_generated=include_generated)
-    footnotes = _image_footnotes(item)
-    text = "\n".join([*captions, *footnotes])
-    return clean_text(text)
-
-
-def table_text(item: Dict) -> str:
-    text = "\n".join(
-        filter(
-            None,
-            [
-                "\n".join(item.get("table_caption", [])),
-                item.get("table_body", ""),
-                "\n".join(item.get("table_footnote", [])),
-            ],
-        )
-    )
-    return clean_text(text)
-
-
-def list_text(item: Dict) -> str:
-    items = item.get("list_items") or []
-    if items:
-        return clean_text("\n".join(items))
-    return clean_text(item.get("text", ""))
 
 
 def _format_context_line(
@@ -532,61 +480,21 @@ def _build_result_items(
     *,
     chunk_type: bool,
 ) -> List[Dict[str, object]]:
-    result_items: List[Dict[str, object]] = []
-    for item in content_list:
-        page_number = int(item.get("page_idx", 0)) + 1
-        is_title = item.get("type") == "text" and item.get("text_level") is not None
-
-        if item["type"] == "image" and item.get("img_path") and item["img_path"].strip():
+    def resolve_image(item):
+        if item.get("img_path") and item["img_path"].strip():
             combined_text = image_results.get(id(item), "").strip()
-            if combined_text:
-                chunk = {"text": combined_text, "page_number": page_number}
-                if chunk_type:
-                    chunk["type"] = "image"
-                result_items.append(chunk)
-        elif item["type"] in ("header", "footer"):
-            if not chunk_type:
-                continue
-            header_txt = clean_text(item.get("text", ""))
-            if header_txt.strip():
-                chunk = {
-                    "text": header_txt,
-                    "page_number": page_number,
-                    "type": item["type"],
-                }
-                result_items.append(chunk)
-        elif item["type"] == "list":
-            list_txt = list_text(item)
-            if list_txt.strip():
-                chunk = {"text": list_txt, "page_number": page_number}
-                if chunk_type and is_title:
-                    chunk["type"] = "title"
-                result_items.append(chunk)
-        elif item["type"] in ("text", "equation") and item.get("text", "").strip():
-            chunk = {"text": clean_text(item["text"]), "page_number": page_number}
-            if chunk_type and is_title:
-                chunk["type"] = "title"
-            result_items.append(chunk)
-        elif item["type"] == "table" and (
-            item.get("table_caption") or item.get("table_body") or item.get("table_footnote")
-        ):
-            chunk = {"text": table_text(item), "page_number": page_number}
-            if chunk_type and is_title:
-                chunk["type"] = "title"
-            result_items.append(chunk)
-        elif (
-            item["type"] == "image"
-            and (_image_captions(item) or _image_footnotes(item))
-            and not (item.get("img_path") and item["img_path"].strip())
-        ):
+            return combined_text or None
+        if _image_captions(item) or _image_footnotes(item):
             img_txt = image_text(item)
-            if img_txt.strip():
-                chunk = {"text": img_txt, "page_number": page_number}
-                if chunk_type:
-                    chunk["type"] = "image"
-                result_items.append(chunk)
+            return img_txt if img_txt.strip() else None
+        return None
 
-    return result_items
+    return project_legacy_content(
+        content_list,
+        chunk_type=chunk_type,
+        image_text_resolver=resolve_image,
+        strict_type=True,
+    )
 
 
 def _build_native_docx_txt_items(

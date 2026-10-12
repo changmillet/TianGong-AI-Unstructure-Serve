@@ -41,6 +41,7 @@ from src.config.config import (
 from src.models.models import TextElementWithPageNum
 from src.services.celery_runtime import runtime_options
 from src.services.mineru_service_full import parse_doc
+from src.services.content_projection import project_legacy_content
 from src.services.mineru_with_images_service import (
     _image_captions,
     _image_footnotes,
@@ -51,8 +52,6 @@ from src.services.mineru_with_images_service import (
     _resolve_context_windows,
     clean_text,
     image_text,
-    list_text,
-    table_text,
 )
 from src.services.vision_service import VisionModel, VisionProvider, vision_completion
 from src.services.vision_prompts import vision_request_key
@@ -353,13 +352,9 @@ def _merge_content(
     return_txt: bool,
 ) -> tuple[List[TextElementWithPageNum], Optional[str]]:
     vision_map = {entry.get("seq"): entry.get("vision_text") for entry in vision_results if entry}
-    result_items: List[Dict[str, object]] = []
 
-    for item in content_list:
-        page_number = int(item.get("page_idx", 0)) + 1
-        is_title = item.get("type") == "text" and item.get("text_level") is not None
-
-        if item.get("type") == "image" and item.get("img_path") and item["img_path"].strip():
+    def resolve_image(item):
+        if item.get("img_path") and item["img_path"].strip():
             seq = item.get("__image_seq")
             base_text = image_text(item, include_generated=seq is None)
             vision_text = vision_map.get(seq, "")
@@ -371,50 +366,15 @@ def _merge_content(
                 combined_text = base_text
             else:
                 combined_text = vision_text or ""
-
-            if combined_text.strip():
-                chunk = {"text": clean_text(combined_text), "page_number": page_number}
-                if chunk_type:
-                    chunk["type"] = "image"
-                result_items.append(chunk)
-        elif item.get("type") in ("header", "footer"):
-            if not chunk_type:
-                continue
-            header_txt = clean_text(item.get("text", ""))
-            if header_txt.strip():
-                result_items.append(
-                    {"text": header_txt, "page_number": page_number, "type": item["type"]}
-                )
-        elif item.get("type") == "list":
-            list_txt = list_text(item)
-            if list_txt.strip():
-                chunk = {"text": list_txt, "page_number": page_number}
-                if chunk_type and is_title:
-                    chunk["type"] = "title"
-                result_items.append(chunk)
-        elif item.get("type") in ("text", "equation") and item.get("text", "").strip():
-            chunk = {"text": clean_text(item["text"]), "page_number": page_number}
-            if chunk_type and is_title:
-                chunk["type"] = "title"
-            result_items.append(chunk)
-        elif item.get("type") == "table" and (
-            item.get("table_caption") or item.get("table_body") or item.get("table_footnote")
-        ):
-            chunk = {"text": table_text(item), "page_number": page_number}
-            if chunk_type and is_title:
-                chunk["type"] = "title"
-            result_items.append(chunk)
-        elif (
-            item.get("type") == "image"
-            and (item.get("img_caption") or item.get("img_footnote"))
-            and not (item.get("img_path") and item["img_path"].strip())
-        ):
+            return clean_text(combined_text) if combined_text.strip() else None
+        if item.get("img_caption") or item.get("img_footnote"):
             img_txt = image_text(item)
-            if img_txt.strip():
-                chunk = {"text": img_txt, "page_number": page_number}
-                if chunk_type:
-                    chunk["type"] = "image"
-                result_items.append(chunk)
+            return img_txt if img_txt.strip() else None
+        return None
+
+    result_items = project_legacy_content(
+        content_list, chunk_type=chunk_type, image_text_resolver=resolve_image
+    )
 
     items = [
         TextElementWithPageNum(

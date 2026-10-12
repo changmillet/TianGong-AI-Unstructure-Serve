@@ -10,8 +10,8 @@ whenToUpdate: "When governance commands, entrypoints or validation requirements 
 checkPaths:
   - .docpact/config.yaml
   - .github/workflows/docpact.yml
-lastReviewedAt: 2026-10-10
-lastReviewedCommit: d973447d2452339220478354efeb52c260c86a90
+lastReviewedAt: 2026-10-12
+lastReviewedCommit: f454ed87411bec0a795778b3a521f3baf94d5b0f
 ---
 
 # 开发验证与验收范围
@@ -38,7 +38,7 @@ uv run --group dev pytest
 常规测试用替身隔离外部依赖，覆盖路由参数、SDK 适配、资产完整性、阅读顺序、视觉失败、上传清理、共享解析槽和批量恢复；`test_mineru4_adapter.py` 还用真实小 PDF 文本层验证“明显有字却零块”必须失败、仅选中空白页可保持空结果；不代表模型解析质量或生产容量已验证。
 
 `test_mineru_deployment.py` 验证 Compose 的三卡/四卡默认每卡固定 3 GiB KV、拓扑专属覆盖与显式空值回退、PM2 不覆盖私有配置、旧进程环境在模型启动器中被清除、已有最终镜像免构建且禁止拉取、缺失镜像走构建路径，以及容器入口始终传启动检查比例、固定 KV 时再传 KV 字节数。它只验证参数组装；共享 GPU 的真实峰值和 PDF 正确性仍须运行下方验收。
-MinerU 4.0.11 / DocVortex 0.5.13 与其余应用依赖整体升级时，先在独立虚拟环境检查锁文件和常规测试，再用 p2 四档、含图论文、长于处理窗口的 PDF 验证词间空格、页码、表格和可解码图片。模型镜像单独构建并检查 `pip check`、CUDA 张量运算、真实 PDF 及 DP 副本；切换运行服务后再验证同步、普通任务和 two-stage 的响应合同。未对照相同文件与负载前，不把上游 DocVortex 性能数据写成本项目提速结论。
+MinerU 4.0.12 / DocVortex 0.5.16 / mineru-vl-utils 2.0.7 定向升级时，先在独立虚拟环境检查锁文件和常规测试，再用 p2 四档、含图论文、长于处理窗口的 PDF 验证词间空格、页码、表格和可解码图片。模型镜像单独构建并检查 `pip check`、CUDA 张量运算、真实 PDF 及 DP 副本；切换运行服务后再验证同步、普通任务和 two-stage 的响应合同。未对照相同文件与负载前，不把上游 DocVortex 性能数据写成本项目提速结论。
 Compose 配置测试的临时 `--env-file` 写入 Git 忽略的 `output` 并在测试后删除；Snap Docker 看不到宿主 pytest 默认的 `/tmp`，将文件放在该处会让配置检查直接失败。
 
 `test_vision_capacity_http.py` 使用本地真实 TCP/HTTP 连接模拟 TLS 握手不响应和 HTTP 503，验证快速切换、跨调用冷却及恢复后重新分配；正常响应刻意晚于连接预算，确保不会误用短预算截断推理。`test_vision_endpoint_routing.py` 另以固定响应验证普通图片清理后空内容在同一次调用中切换、只编码图片一次、全部端点无内容及半开不误恢复；图片流程测试验证仅无内容时写入 `[图片内容无法识别]` 并继续，连接故障仍失败，严格 OCR 不执行普通图片清理。固定响应不能证明小图或二维码的真实识别质量，仍须使用下面的真实 PDF 验收。`test_vision_health.py` 覆盖探测鉴权/前缀、有限兼容回退、模型匹配、总超时、禁止重定向、跨实例 leader 租约、状态过期和关闭时取消；健康成功不得直接恢复并发。
@@ -50,6 +50,8 @@ Compose 配置测试的临时 `--env-file` 写入 Git 忽略的 `output` 并在�
 部署更新后，确认独立视觉探测进程在线、私有端点的状态持续更新；按三卡或四卡拓扑核对相应 worker，并用实际 API 验证 p2 的三类幂等任务、轻量下载和旧响应合同，以及同步解析、含图论文和 Office 转换。随后确认队列及 active/reserved/scheduled 收敛，核对本项目进程、共享服务状态并保存 PM2。该验收不代表低清图片语义或长期满载测试通过，具体质量与长文档边界见调优指南。
 
 Black 排除任意层级的 `.venv` 和根目录的 input/output/pdfs/pickle，避免格式化模型环境或结果。Ruff 规则以 `pyproject.toml` 为准。
+
+`test_legacy_api_compatibility.py` 使用真实 HTTP 参数解析和上传落盘，替换 parser/broker 边界，覆盖上传字段、Bearer 鉴权、query/form 冲突、源页/顺序/TXT 及旧 Redis 任务的模式差异；不能替代真实模型与消息系统验证。`test_content_projection.py` 对共享投影及其实际调用路径固定普通/图片模式的行为，特别保留清理后空文本、SCI 参考文献、筛除图片与缺失视觉结果的不同处理。
 
 ## 真实 PDF 回归
 

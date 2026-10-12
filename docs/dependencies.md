@@ -12,8 +12,8 @@ checkPaths:
   - uv.lock
   - .python-version
   - deploy/mineru-vllm/Dockerfile
-lastReviewedAt: 2026-10-10
-lastReviewedCommit: d973447d2452339220478354efeb52c260c86a90
+lastReviewedAt: 2026-10-12
+lastReviewedCommit: f454ed87411bec0a795778b3a521f3baf94d5b0f
 ---
 
 # 依赖与 Python 维护
@@ -24,8 +24,8 @@ lastReviewedCommit: d973447d2452339220478354efeb52c260c86a90
 
 | 环境 | 当前约定 | 验证方式 |
 | --- | --- | --- |
-| 应用 | Python 3.13.15、MinerU 4.0.11 与 DocVortex 0.5.13 基础包、CPU ONNX；不安装 Torch/vLLM | `uv sync --locked --group dev --check`、`uv pip check` |
-| Docker 模型 | 模板缺省 vLLM 0.21.0 配套的 Torch/CUDA，镜像内安装 MinerU 4.0.11 与 DocVortex 0.5.13 | 构建中的 `pip check`、容器 CUDA 计算及真实 PDF |
+| 应用 | Python 3.13.15、MinerU 4.0.12 基础包、DocVortex 0.5.16、mineru-vl-utils 2.0.7、CPU ONNX；不安装 Torch/vLLM | `uv sync --locked --group dev --check`、`uv pip check` |
+| Docker 模型 | 模板缺省 vLLM 0.21.0 配套的 Torch/CUDA，镜像内安装 MinerU 4.0.12、DocVortex 0.5.16 与 mineru-vl-utils 2.0.7；GPUStack 示例使用 vLLM 0.28.0 | 构建中的 `pip check`、容器 CUDA 计算及真实 PDF |
 | 系统工具 | LibreOffice、Poppler、Pandoc 等 | [部署检查](mineru_4_upgrade_usage.md)与 Office 回归 |
 
 四档质量是解析选项，不是安装 extras。CPU ONNX 加 Docker VLM 的应用使用基础 `mineru`；不要为了 `flash/basic/standard/advanced` 安装包含本地模型引擎的 extra。`uv.lock` 可能含其他操作系统的条件依赖，不能只搜索锁文件中的包名来判断本机是否安装。
@@ -40,13 +40,13 @@ lastReviewedCommit: d973447d2452339220478354efeb52c260c86a90
 以下命令只在隔离的开发环境执行，不直接修改运行服务使用的环境：
 
 ```bash
-uv lock --upgrade
+uv lock --upgrade-package mineru --upgrade-package docvortex --upgrade-package mineru-vl-utils
 uv sync --locked --group dev
 uv pip check
 uv run --group dev pytest
 ```
 
-锁文件已经过审查、只需初始化时使用 `uv sync --locked`，不要附加升级选项。根据改动范围重新检查四档、Office、视觉、任务失败传播、进程退出和文档字段。
+本次三件套升级先调整 `pyproject.toml` 的约束，再运行上述定向锁更新；仅更新必要包及新引入的传递依赖，审查实际锁文件差异，不使用 `uv lock --upgrade` 扩大到无关依赖。锁文件已经过审查、只需初始化时使用 `uv sync --locked`，不要附加升级选项。根据改动范围重新检查四档、Office、视觉、任务失败传播、进程退出和文档字段。
 
 ### 兼容上限
 
@@ -54,18 +54,24 @@ uv run --group dev pytest
 
 | 包 | 约束来源 | 当前选择 |
 | --- | --- | --- |
-| OpenAI SDK | MinerU 4.0.11 要求 `openai<3` | 2.54.0，不能直接换成 3.x |
+| OpenAI SDK | MinerU 4.0.12 要求 `openai<3` | 2.54.0，不能直接换成 3.x |
 | Redis Python 客户端 | Kombu 的 Redis extra 要求 `<6.5` | 6.4.0；与 Redis 服务端版本是两回事 |
 | pydantic-core | Pydantic 2.14.0 精确依赖 `==2.50.0` | 随 Pydantic 一起升级 |
-| filelock | DocVortex 0.5.13 要求 `>=3.12,<4` | 3.32.7；不单独升级到 4.x |
+| filelock | DocVortex 0.5.16 要求 `>=3.12,<4` | 3.32.7；不单独升级到 4.x |
 | tomlkit | Gradio 要求 `<0.15` | 0.14.0 |
 | websockets | google-genai 要求 `<17` | 16.1.1 |
 
-MinerU 4.0.11 的 `full` extra 声明 `vllm>=0.19.1,<0.29.0`。模型镜像模板缺省使用 vLLM 0.21.0；0.28.0 可通过私有环境配置覆盖基础镜像和版本校验参数。每种 MinerU/vLLM 镜像组合都须分别验收；更换 vLLM 同时更换 Torch/CUDA 与推理实现，需检查 CUDA、MinerU logits processor、全部 DP 副本和真实 PDF。vLLM 0.28.0 对缺少顶层 `tie_word_embeddings=true` 的旧 MinerU2.5 Pro 2605-1.2B 缓存必须显式设置该值，否则真实生成会退化为重复符号并产生空解析；上游模型仓库已在 2026-10-08 的 config.json 补齐该字段，但 Compose 仍通过 `--hf-overrides` 保证旧缓存正确。vLLM 0.28.0 要求镜像内 FastAPI `>=0.133,<0.137`；可用 `MINERU_DOCKER_FASTAPI_VERSION=0.136.3`、`MINERU_DOCKER_STARLETTE_VERSION=1.6.0` 选择与该基底兼容的版本，构建时运行 `pip check`。不要把模型环境版本写入应用锁文件。版本依据为 [MinerU 4.0.11 包元数据](https://pypi.org/pypi/mineru/4.0.11/json)、[模型配置提交](https://huggingface.co/opendatalab/MinerU2.5-Pro-2605-1.2B/commit/08aaea840498d49ce16247b6263196cf02814885)和 [vLLM 0.28.0 发行说明](https://github.com/vllm-project/vllm/releases/tag/v0.28.0)。
+MinerU 4.0.12 的 `full` extra 声明 `vllm>=0.19.1,<0.29.0`。模型镜像模板缺省使用 vLLM 0.21.0；0.28.0 可通过私有环境配置覆盖基础镜像和版本校验参数。每种 MinerU/vLLM 镜像组合都须分别验收；更换 vLLM 同时更换 Torch/CUDA 与推理实现，需检查 CUDA、MinerU logits processor、全部 DP 副本和真实 PDF。vLLM 0.28.0 对缺少顶层 `tie_word_embeddings=true` 的旧 MinerU2.5 Pro 2605-1.2B 缓存必须显式设置该值，否则真实生成会退化为重复符号并产生空解析；上游模型仓库已在 2026-10-08 的 config.json 补齐该字段，但 Compose 仍通过 `--hf-overrides` 保证旧缓存正确。vLLM 0.28.0 要求镜像内 FastAPI `>=0.133,<0.137`；可用 `MINERU_DOCKER_FASTAPI_VERSION=0.136.3`、`MINERU_DOCKER_STARLETTE_VERSION=1.6.0` 选择与该基底兼容的版本，构建时运行 `pip check`。不要把模型环境版本写入应用锁文件。版本依据为 [MinerU 4.0.12 包元数据](https://pypi.org/pypi/mineru/4.0.12/json)、[模型配置提交](https://huggingface.co/opendatalab/MinerU2.5-Pro-2605-1.2B/commit/08aaea840498d49ce16247b6263196cf02814885)和 [vLLM 0.28.0 发行说明](https://github.com/vllm-project/vllm/releases/tag/v0.28.0)。
 
 vLLM 0.21.0 和 0.28.0 都支持 `--kv-cache-memory-bytes`。容器入口按私有 `.env` 选择固定 KV 字节数或显存比例，无需为切换预算修改镜像依赖；具体键及验证见[部署说明](mineru_4_upgrade_usage.md#docker-与多卡)。
 
-MinerU 4.0.11 要求 DocVortex 至少 0.5.12、mineru-vl-utils 至少 2.0.5；应用锁文件和模型镜像分别固定为 0.5.13、2.0.5。应用锁文件按当前约束整体升级；模型镜像保留与 vLLM/Torch/CUDA 配套的推理环境，FastAPI/Starlette 与独立应用环境分别求解，不能把应用锁文件直接安装进模型容器。相对 4.0.7，DocVortex 0.5 系列改进原生 PDF 处理；MinerU 修复英文词间空格、改善并发渲染，并移除 OpenCV 直接依赖。上游 DocVortex 性能数据不代表本项目含模型推理的端到端提升，需按相同文件、档位和并发做实测。ONNX 会话在没有显式线程设置时读取 `MINERU_INTRA_OP_NUM_THREADS` / `MINERU_INTER_OP_NUM_THREADS`，上游最终回退为 4/1；本项目部署模板显式使用 16/1。资产文件名由 SDK 保存后的引用决定，不能依赖旧哈希命名；升级须验证真实图片可解码、分辨率和下游视觉筛选。变更依据见 [MinerU 4.0.8](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.8-released)、[4.0.9](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.9-released)、[4.0.11 发行说明](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.11-released)及 [DocVortex 性能说明](https://github.com/myhloli/DocVortex#pdf-performance)。
+MinerU 4.0.12 要求 DocVortex 至少 0.5.16、mineru-vl-utils 至少 2.0.5，并新增 `fastapi-offline>=1.7.7,<2`；应用锁文件和模型镜像统一选择 DocVortex 0.5.16、mineru-vl-utils 2.0.7。`uv.lock` 保留其余既有包版本，仅定向更新三件套并加入 fastapi-offline 1.7.7。模型镜像保留与 vLLM/Torch/CUDA 配套的推理环境，FastAPI/Starlette 与独立应用环境分别求解，不能把应用锁文件直接安装进模型容器。
+
+本服务通过无状态 `mineru.parser.parse` 保存 `ParseResult`/MiddleJson，再生成既有 HTTP 结果；同步和异步入口的等待、持久任务、恢复及产物保留继续由本服务管理。MinerU 4.0.12 新增的上游 `/v1/tasks`、`/v1/file_parse`、同步超时 `202` 和默认 24 小时资源清理属于其 api-server/Router，本服务没有采用这些入口或生命周期。上游任务索引仅存进程内存，重启后即使保留上传目录也不保留任务 ID，见 [HTTP API 生产边界](https://github.com/opendatalab/MinerU/blob/mineru-4.0.12-released/docs/en/usage/http_api.md#production-notes)。
+
+4.0.12 修复原生 PDF 的中日韩标点与空格处理、版面分类阈值及 Torch/ONNX 过滤一致性，并通过 DocVortex 保存 DOCX/PPTX 表格中的富文本链接；mineru-vl-utils 2.0.7 在内容裁剪和识别前抑制同类型、同角度的重复布局块。解析内容与块数量可能变化，升级须按同一源文件检查正文、表格、页码和图片。版本依据见 [MinerU 4.0.12](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.12-released)及 [mineru-vl-utils 2.0.7](https://github.com/opendatalab/mineru-vl-utils/releases/tag/mineru_vl_utils-2.0.7-released)。
+
+相对 4.0.7，DocVortex 0.5 系列改进原生 PDF 处理；MinerU 修复英文词间空格、改善并发渲染，并移除 OpenCV 直接依赖。上游 DocVortex 性能数据不代表本项目含模型推理的端到端提升，需按相同文件、档位和并发做实测。ONNX 会话在没有显式线程设置时读取 `MINERU_INTRA_OP_NUM_THREADS` / `MINERU_INTER_OP_NUM_THREADS`，上游最终回退为 4/1；本项目部署模板显式使用 16/1。资产文件名由 SDK 保存后的引用决定，不能依赖旧哈希命名；升级须验证真实图片可解码、分辨率和下游视觉筛选。变更依据见 [MinerU 4.0.8](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.8-released)、[4.0.9](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.9-released)、[4.0.11 发行说明](https://github.com/opendatalab/MinerU/releases/tag/mineru-4.0.11-released)及 [DocVortex 性能说明](https://github.com/myhloli/DocVortex#pdf-performance)。
 
 ## Python 版本选择
 

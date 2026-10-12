@@ -1,11 +1,11 @@
 {
   "backend_name": "tiangong-mineru4-custom",
-  "description": "Existing MinerU 4.0.11 runtime and model volume; select DP and startup budget per worker",
+  "description": "MinerU 4.0.12 runtime with the existing model volume; select DP and startup budget per worker",
   "health_check_path": "/health",
-  "default_version": "4.0.11-vllm0.28.0-custom",
+  "default_version": "4.0.12-vllm0.28.0-custom",
   "version_configs": {
-    "4.0.11-vllm0.28.0-custom": {
-      "image_name": "tiangong/mineru-vlm:4.0.11-dv0.5.13-vllm0.28.0",
+    "4.0.12-vllm0.28.0-custom": {
+      "image_name": "tiangong/mineru-vlm:4.0.12-dv0.5.16-vllm0.28.0",
       "custom_framework": "cuda",
       "entrypoint": "/bin/bash /usr/local/bin/mineru-model-entrypoint",
       "run_command": "--host {{worker_ip}} --port {{port}} --served-model-name {{model_name}} mineru4"

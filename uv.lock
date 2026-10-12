@@ -13,13 +13,13 @@ name = "accelerate"
 version = "1.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "psutil" },
-    { name = "pyyaml" },
-    { name = "safetensors" },
-    { name = "torch" },
+    { name = "huggingface-hub", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "numpy", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "packaging", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "psutil", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "pyyaml", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "safetensors", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "torch", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f5/b5/1d3ed029ac71d3f2961346829a268da923698e9fd63f218f78841f216bfd/accelerate-1.15.0.tar.gz", hash = "sha256:5654f8c5eaa0d4fa68b33e287a97765da6849bf6d51dcac874e73fbbddfb6134", size = 422615, upload-time = "2026-09-09T13:04:49.078Z" }
 wheels = [
@@ -420,7 +420,7 @@ wheels = [
 
 [[package]]
 name = "docvortex"
-version = "0.5.13"
+version = "0.5.16"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -454,15 +454,15 @@ dependencies = [
     { name = "resvg-py" },
     { name = "ziamath" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/ba/cc58ab1d78b819ce67f1d23f79bb169543d88282512f0569ae9878a5e8a8/docvortex-0.5.13.tar.gz", hash = "sha256:13df2d8c3ff11f33cc152770fa45437819e3420f2d71456f768fbfe4c1138455", size = 74858175, upload-time = "2026-10-09T03:50:01.517Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/89/a58b54c2de10a487e35be25adf7fdb0b0ca9b2245e79f5b8357419698345/docvortex-0.5.16.tar.gz", hash = "sha256:946f8903b7d197fca5ce52b1760b4a56e0ef2e496ce7b126d0d2ae33eb0dc585", size = 75878152, upload-time = "2026-10-10T20:13:16.976Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/f8/29f45e590d5b0466295f131089caf3eca6a1c0165adace80646fbad8f1a9/docvortex-0.5.13-cp310-abi3-macosx_10_13_x86_64.whl", hash = "sha256:0114adcb0ea782d948fe7dbc17dca8c702027aff04ad623c4643310b7cfb6593", size = 5217621, upload-time = "2026-10-09T03:49:48.473Z" },
-    { url = "https://files.pythonhosted.org/packages/4b/e9/02e01ea37c8aaa30a8909bc59e3cb220467d94bae272f77a14e4f0b5b5f9/docvortex-0.5.13-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:f761826a9fd65931220fdfba73f4fd53dbeca87402c3e15f1fa97fd1339719d5", size = 5091612, upload-time = "2026-10-09T03:49:50.634Z" },
-    { url = "https://files.pythonhosted.org/packages/b6/d0/625c2f60dd78dd8acd56b3fcd1572cea1156c0728b70118235963a647935/docvortex-0.5.13-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:eb6c49232d31f56c1611d99dbb9674f823d87b624f8efaaafb9e57931c4f8b81", size = 5135239, upload-time = "2026-10-09T03:49:52.304Z" },
-    { url = "https://files.pythonhosted.org/packages/ca/18/dc42a990d4dd926c99c4078077d68329524013f2abaeeb9695c87e6c3f0f/docvortex-0.5.13-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:570a2efcb01a365ddd9a648a6b6696acd3367cb124981439a4a5210e30250431", size = 5241530, upload-time = "2026-10-09T03:49:53.989Z" },
-    { url = "https://files.pythonhosted.org/packages/bc/83/9500508faa9581230988182539c7e7e0dbd844901b407ef4f309f5cc99d9/docvortex-0.5.13-cp310-abi3-win_amd64.whl", hash = "sha256:7f713cc4cdebe07108a05cffee0e58de197392d491c999c7a8946892984e7778", size = 5126415, upload-time = "2026-10-09T03:49:55.626Z" },
-    { url = "https://files.pythonhosted.org/packages/68/97/5c98a98943d02b7e27b115e39ef73f45d47f2ffa6b52d92c88dc25e75a12/docvortex-0.5.13-cp310-abi3-win_arm64.whl", hash = "sha256:cd2460e216a7bb5d740169575a284374dd90e97aa7555b2b0f2aa4bc1c4ffe8c", size = 4984269, upload-time = "2026-10-09T03:49:57.201Z" },
-    { url = "https://files.pythonhosted.org/packages/85/80/0a803e2778aa1b564b1dd0ebac90f61c2dafeab71fc3588bab144d5fd7d4/docvortex-0.5.13-py3-none-any.whl", hash = "sha256:3e31a413875afb2356c786d2887f9be726ed58115e1c5fff8873593448f4f9df", size = 3936060, upload-time = "2026-10-09T03:49:58.93Z" },
+    { url = "https://files.pythonhosted.org/packages/14/74/2a9bf569e88b271c44988d7c2928c145e8d53b9ae6a12a47f14397f2cb5c/docvortex-0.5.16-cp310-abi3-macosx_10_13_x86_64.whl", hash = "sha256:4e7a3d31e72828f099f637cd04265dac7a76a4b076a2454c39d83753927730b9", size = 5250471, upload-time = "2026-10-10T20:13:02.933Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/df/eaeca13e2577ea435f585b0e0fbabf8681ea22b03318846e8a361a5519f8/docvortex-0.5.16-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:bc1f7ab10aa63b0eeb8c8d005477427f07da78d9e2f95d385da0eb69f44e15d4", size = 5122262, upload-time = "2026-10-10T20:13:05.285Z" },
+    { url = "https://files.pythonhosted.org/packages/69/f5/3f6d2bfa7efc7cc6e9d559f5321d21a2ac2bdc84abba0878ef09cdd242aa/docvortex-0.5.16-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:3f61b76ab9dd71b92fa2b38d4b2b51cf582a9f22b5f24f6792fdce2c047df728", size = 5166768, upload-time = "2026-10-10T20:13:07.172Z" },
+    { url = "https://files.pythonhosted.org/packages/64/8b/1cffb55aa16c243568b31d2f4d0916e94f0155f8e14d68fc74d8f77edb9b/docvortex-0.5.16-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:28780eba1d72627fa1aa60e21c4a378d156d919f676b83988d01106271637ee2", size = 5275476, upload-time = "2026-10-10T20:13:08.926Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/ff/632a66916f7728cb41774a8be9dfb07c6970916bd2bed1c1dea579c6a773/docvortex-0.5.16-cp310-abi3-win_amd64.whl", hash = "sha256:20952ea883e54ee1e800dea08cdb370017f920b4b3d9543db863aa664ae815bb", size = 5160296, upload-time = "2026-10-10T20:13:10.87Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/4d/8ef08d9b922d0302d8b14eb96d5315f8b798d27f5d4c59aacd2b3d09a9e1/docvortex-0.5.16-cp310-abi3-win_arm64.whl", hash = "sha256:2b64f7f162d08d03d9f13ef4b662ae600f0f361fb88ac5a6947298da80946778", size = 5015159, upload-time = "2026-10-10T20:13:12.466Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/53/b2c397888c6ecd30128d0ffeef5dc2198d89adcfefe65ef2aa843b7d8bd3/docvortex-0.5.16-py3-none-any.whl", hash = "sha256:7dd9bd682a7195dc27f66d82df518bf3ca72bba3a07279171f0c6b375186727c", size = 3955502, upload-time = "2026-10-10T20:13:14.15Z" },
 ]
 
 [[package]]
@@ -489,6 +489,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0b/d7/6a8753ab6c1d432dc53703c3e1b92974a94531b7d047c32bbaae461ea844/fastapi-0.143.0.tar.gz", hash = "sha256:1acffe48206a80917cf7dac21992b5c44b25384e8902bf745c1fd9dabcf6c51f", size = 468391, upload-time = "2026-10-08T12:29:46.54Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/f4/27e386913417ad32aae42bba48b0c0cce40e9ff2fba1a871ca2702c37324/fastapi-0.143.0-py3-none-any.whl", hash = "sha256:3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d", size = 144665, upload-time = "2026-10-08T12:29:44.853Z" },
+]
+
+[[package]]
+name = "fastapi-offline"
+version = "1.7.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastapi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/15/a5/f650b565354d38f98211683a7b5c3578d450848421444799cb51da8e562f/fastapi_offline-1.7.7.tar.gz", hash = "sha256:aeeabe67dd40f867ab0fe64dd8de742949e36ba5f3ac6aeb055baef274ed91d0", size = 777678, upload-time = "2026-06-19T20:43:28.938Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/de/808ff88dac73c97ad32c653f92f6751ea5a0a211ae1dffd471125e63a31e/fastapi_offline-1.7.7-py3-none-any.whl", hash = "sha256:60c8399fd7d3e3b01510e14468709e3dea1a0e773ef920372d057392d736a1f9", size = 777007, upload-time = "2026-06-19T20:43:27.767Z" },
 ]
 
 [[package]]
@@ -1037,7 +1049,7 @@ wheels = [
 
 [[package]]
 name = "mineru"
-version = "4.0.11"
+version = "4.0.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -1046,6 +1058,7 @@ dependencies = [
     { name = "click" },
     { name = "docvortex" },
     { name = "fastapi" },
+    { name = "fastapi-offline" },
     { name = "filelock" },
     { name = "ftfy" },
     { name = "gradio" },
@@ -1083,7 +1096,7 @@ dependencies = [
     { name = "watchfiles" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/d3/550b470b0660118391972a256d1eff11e699c3dd81a42b12f3220991fec6/mineru-4.0.11-py3-none-any.whl", hash = "sha256:1d4370f8fe342785daa7442e81c05c782b7cb467976dbc9314576f31edcf8a8a", size = 3656349, upload-time = "2026-10-08T18:22:54.297Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/ef/cdf3279dc11a02acfeff4733a29762d2c539f9739c31e2ada8ec37705840/mineru-4.0.12-py3-none-any.whl", hash = "sha256:a3ff8582a4608eb1f4dde55800ac156d59b01ceabd2ab4002bdf8e86306b1eab", size = 3682241, upload-time = "2026-10-11T02:24:00.489Z" },
 ]
 
 [[package]]
@@ -1103,7 +1116,7 @@ wheels = [
 
 [[package]]
 name = "mineru-vl-utils"
-version = "2.0.5"
+version = "2.0.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -1114,8 +1127,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "tqdm" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/ca/0a897f0c889474d80621076f3b1ef6f6d1cbf56f676d7aca34887d042344/mineru_vl_utils-2.0.7.tar.gz", hash = "sha256:eb46a1167c17d0a48b642835d60d14416e79e3acc680326c2f5630a31354fd04", size = 132864, upload-time = "2026-10-10T17:56:37.255Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/08/f9200f90472537614c53be916b4f1fc2695a19434114f0a144304b6f6dcd/mineru_vl_utils-2.0.5-py3-none-any.whl", hash = "sha256:d2dc6234066af8ca8c7cf91a0d13c1677ce61d64da0f7215a75f37261c11491c", size = 108642, upload-time = "2026-09-19T07:11:54.638Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/93/a86270621f43d9357600f9a4634652c6a70f93f56ce7a8f30646866440e8/mineru_vl_utils-2.0.7-py3-none-any.whl", hash = "sha256:3bf184c359d69e78d0509f58324c58ad323037cf97bd4086cacb9caf53db0db7", size = 112947, upload-time = "2026-10-10T17:56:35.776Z" },
 ]
 
 [[package]]
@@ -1735,7 +1749,7 @@ wheels = [
 
 [package.optional-dependencies]
 accel = [
-    { name = "rl-accel" },
+    { name = "rl-accel", marker = "(platform_machine != 'ARM64' and platform_machine != 'aarch64' and platform_machine != 'arm64') or sys_platform != 'win32'" },
 ]
 
 [[package]]
@@ -1967,7 +1981,7 @@ name = "sympy"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mpmath" },
+    { name = "mpmath", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/83/d3/803453b36afefb7c2bb238361cd4ae6125a569b4db67cd9e79846ba2d68c/sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517", size = 7793921, upload-time = "2025-04-27T18:05:01.611Z" }
 wheels = [
@@ -1998,6 +2012,7 @@ dependencies = [
     { name = "kombu", extra = ["redis"] },
     { name = "loguru" },
     { name = "mineru" },
+    { name = "mineru-vl-utils" },
     { name = "openai" },
     { name = "pillow" },
     { name = "protobuf" },
@@ -2024,7 +2039,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.6.3" },
-    { name = "docvortex", specifier = "==0.5.13" },
+    { name = "docvortex", specifier = "==0.5.16" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "flower", specifier = ">=2.1.0" },
     { name = "google-genai", specifier = ">=2.24.0" },
@@ -2032,7 +2047,8 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "kombu", extras = ["redis"], specifier = ">=5.6" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "mineru", specifier = ">=4.0.11,<4.1" },
+    { name = "mineru", specifier = ">=4.0.12,<4.1" },
+    { name = "mineru-vl-utils", specifier = "==2.0.7" },
     { name = "openai", specifier = ">=2,<3" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "protobuf", specifier = ">=7.36.2" },
@@ -2118,13 +2134,13 @@ name = "torch"
 version = "2.14.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock" },
-    { name = "fsspec" },
-    { name = "jinja2" },
-    { name = "networkx" },
-    { name = "setuptools" },
-    { name = "sympy" },
-    { name = "typing-extensions" },
+    { name = "filelock", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "fsspec", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "jinja2", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "networkx", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "setuptools", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "sympy", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "typing-extensions", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/11/faaca4f8541c45127b7e0d6bb141221fe944c8466d89986b8466c6c195f9/torch-2.14.1-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:dbe359d705f4d67236743794c296c6dee93a922fd8117eff8c3e880d7d0fb2b9", size = 127315286, upload-time = "2026-09-30T17:52:27.43Z" },
@@ -2135,9 +2151,9 @@ name = "torchvision"
 version = "0.29.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
-    { name = "pillow" },
-    { name = "torch" },
+    { name = "numpy", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "pillow", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "torch", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/85/33819e5ed0caf494a5c0caa6c72bcd9d5bd22c68480d636288832d9d5f55/torchvision-0.29.1-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:b0b3de76f2ee5678b7950ba9971cf72d9c5887cd7993db61788552f371686fed", size = 1813847, upload-time = "2026-09-30T17:57:17.586Z" },
@@ -2177,15 +2193,15 @@ name = "transformers"
 version = "5.19.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "pyyaml" },
-    { name = "regex" },
-    { name = "safetensors" },
-    { name = "tokenizers" },
-    { name = "tqdm" },
-    { name = "typer" },
+    { name = "huggingface-hub", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "numpy", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "packaging", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "pyyaml", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "regex", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "safetensors", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "tokenizers", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "tqdm", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "typer", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/65/4c/70012ed0795235fb6bd7806fafd4a1842f03e49ebbfa3bb9580e451948ce/transformers-5.19.0.tar.gz", hash = "sha256:87f38dd25e4521151b97e94520ac457f44a0ae8a8358a5b112daff6c64a822d6", size = 10032022, upload-time = "2026-10-06T16:39:00.229Z" }
 wheels = [

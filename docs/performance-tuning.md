@@ -1,6 +1,6 @@
 ---
-lastReviewedAt: 2026-10-10
-lastReviewedCommit: d973447d2452339220478354efeb52c260c86a90
+lastReviewedAt: 2026-10-12
+lastReviewedCommit: f454ed87411bec0a795778b3a521f3baf94d5b0f
 docType: runbook
 scope: repo
 status: current
@@ -20,7 +20,7 @@ checkPaths:
 
 本文件作为开发运维文档提交 Git，但不通过 FastAPI、llms.txt 或服务文档路由暴露。运行凭证、原始文档和实测输出仍保持私有；不得通过通用静态目录挂载仓库。
 
-应用基线：MinerU 4.0.11、DocVortex 0.5.13、Python 3.13.15、CPU ONNX 小模型、FastAPI 与 Celery。模型镜像与部署方式单独记录；原生模板和 GPUStack 托管不共享生命周期。本指南给出资源变化后的测量与选择方法；历史表中的本机值是当时已测起点，不是新机器的通用最优值。
+应用基线：MinerU 4.0.12、DocVortex 0.5.16、mineru-vl-utils 2.0.7、Python 3.13.15、CPU ONNX 小模型、FastAPI 与 Celery。模型镜像与部署方式单独记录；原生模板和 GPUStack 托管不共享生命周期。本指南给出资源变化后的测量与选择方法；历史表中的本机值是当时已测起点，不是新机器的通用最优值。
 
 安装与故障恢复见[部署与恢复](mineru_4_upgrade_usage.md)，接口调用见 [AI 接入指南](ai-integration.md)。先按部署文档获得能正确解析的系统，再调性能。
 
