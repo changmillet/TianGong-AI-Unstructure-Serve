@@ -13,13 +13,13 @@ checkPaths:
   - .env.example
   - pyproject.toml
   - uv.lock
-lastReviewedAt: 2026-10-10
-lastReviewedCommit: d973447d2452339220478354efeb52c260c86a90
+lastReviewedAt: 2026-10-12
+lastReviewedCommit: f454ed87411bec0a795778b3a521f3baf94d5b0f
 ---
 
 # 部署、维护与恢复
 
-应用使用 Python 3.13.15、MinerU 4.0.11、DocVortex 0.5.13 和 CPU ONNX；大模型由 Docker vLLM 提供。应用依赖以 uv.lock 为准，不在应用环境安装 vLLM。接口选择见 [README](../README.md#如何调用)，验证方法见[验证指南](validation.md)。
+应用使用 Python 3.13.15、MinerU 4.0.12、DocVortex 0.5.16、mineru-vl-utils 2.0.7 和 CPU ONNX；大模型由 Docker vLLM 提供。应用依赖以 uv.lock 为准，不在应用环境安装 vLLM。接口选择见 [README](../README.md#如何调用)，验证方法见[验证指南](validation.md)。
 
 所有 shell 命令在仓库根目录执行，文件示例使用相对路径。跨进程或容器的共享目录由部署配置决定，必须指向同一位置；本文不预设机器目录。
 
@@ -205,9 +205,9 @@ pm2 save
 
 | 项目 | 配置位置与模板值 |
 | --- | --- |
-| 基础镜像 | Dockerfile 的 VLLM_IMAGE 参数，vllm/vllm-openai:v0.21.0 |
+| 基础镜像 | Dockerfile 的 VLLM_IMAGE 参数，缺省 vllm/vllm-openai:v0.21.0；vLLM 0.28.0 通过 MINERU_DOCKER_BASE_IMAGE=vllm/vllm-openai:v0.28.0、MINERU_DOCKER_VLLM_VERSION=0.28.0 覆盖 |
 | 镜像内 Web 依赖 | 默认 FastAPI 0.141.1 / Starlette 1.7.0；vLLM 0.28.0 镜像需通过 MINERU_DOCKER_FASTAPI_VERSION=0.136.3、MINERU_DOCKER_STARLETTE_VERSION=1.6.0 覆盖并通过 pip check |
-| 应用模型镜像 | 默认 tiangong/mineru-vlm:4.0.11-dv0.5.13-vllm0.21.0；可用 MINERU_DOCKER_IMAGE_TAG 按环境覆盖，其他 vLLM 版本必须使用对应新标签重建 |
+| 应用模型镜像 | 默认 tiangong/mineru-vlm:4.0.12-dv0.5.16-vllm0.21.0；vLLM 0.28.0 使用 tiangong/mineru-vlm:4.0.12-dv0.5.16-vllm0.28.0，通过 MINERU_DOCKER_IMAGE_TAG 及匹配的基础镜像/版本参数覆盖，并在切换前构建验收 |
 | 上下文 / 并发序列 | Compose command 的 max-model-len=8192、max-num-seqs=16 |
 | 对外端口 / 每卡显存预算 | 私有 .env 的 MINERU_DOCKER_PORT；单卡/三卡比例缺省 0.10，四卡专属比例缺省 0.45，均用于启动检查；三卡/四卡 KV 默认每卡 3 GiB，单卡未固定，按实际硬件重新验收 |
 | GPU 绑定 / DP / TP | 三卡由 compose.mineru.parallel.yaml 设置，四卡由 compose.mineru.parallel4.yaml 设置 |

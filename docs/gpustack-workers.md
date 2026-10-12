@@ -20,7 +20,9 @@ GPUStack worker 管理模型容器的创建、停止与恢复，应用 API、Cel
 
 ## 模型与共享 GPU
 
-后端模板见 `deploy/gpustack/mineru-backend.example.json`。沿用已验证的本机镜像、模型卷与下载缓存，worker 必须挂载相同模型卷到 `/opt/mineru`，并只读挂载 `deploy/mineru-vllm/model-entrypoint.sh` 到模板指定路径。不要重新下载权重或在应用环境安装推理引擎。
+后端模板见 `deploy/gpustack/mineru-backend.example.json`，当前版本为 `4.0.12-vllm0.28.0-custom`，镜像为 `tiangong/mineru-vlm:4.0.12-dv0.5.16-vllm0.28.0`，包含 MinerU 4.0.12、DocVortex 0.5.16 和 mineru-vl-utils 2.0.7。新镜像须先按[依赖指南](dependencies.md)选择 vLLM 0.28.0 基底及匹配的 FastAPI/Starlette 参数，完成构建与真实推理验收后再切换 deployment；不能仅修改标签复用旧镜像。
+
+复用已有模型卷与下载缓存，worker 必须挂载相同模型卷到 `/opt/mineru`，并只读挂载 `deploy/mineru-vllm/model-entrypoint.sh` 到模板指定路径。4.0.11 到 4.0.12 的默认模型仓库引用不变，本次依赖升级无需因此重新下载权重。应用环境保持 CPU ONNX，不安装推理引擎；各应用节点和模型容器分别核对实际三件套版本。
 
 创建 deployment 时显式复制后端参数，并按目标主机设置 DP 数量、GPU selector 和启动显存比例；TP 保持 1、上下文 8192、每副本 16 序列和 3 GiB KV，保留输出层绑定与 MinerU logits processor。同机 Embedding 与 MinerU 使用不同的 DP RPC、master 和运行时通信端口段，避免 host network 下冲突。错开共享 GPU 上的模型启动，核对预热后的逐卡峰值。
 

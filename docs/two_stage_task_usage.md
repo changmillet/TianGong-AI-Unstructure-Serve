@@ -1,6 +1,6 @@
 ---
-lastReviewedAt: 2026-10-10
-lastReviewedCommit: d973447d2452339220478354efeb52c260c86a90
+lastReviewedAt: 2026-10-12
+lastReviewedCommit: f454ed87411bec0a795778b3a521f3baf94d5b0f
 docType: runbook
 scope: repo
 status: current

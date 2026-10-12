@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from threading import Event, Lock, Thread
 from typing import Any, Callable, Dict, List, Optional
 
-from src.utils.text_output import build_plain_text, clean_text as _clean_text
+from src.services.content_projection import project_legacy_content
+from src.utils.text_output import build_plain_text
 
 _LINUX_PR_SET_PDEATHSIG = 1
 _CHILD_EXIT_GRACE_SECONDS = 5
@@ -112,32 +113,6 @@ def _worker_init(gpu_id: str):
     # Optional: set Paddle/other OCR backends to GPU if supported. They usually auto-detect.
 
 
-def _image_text(item: dict) -> str:
-    captions = item.get("img_caption") or []
-    footnotes = item.get("img_footnote") or []
-    combined_text = "\n".join([*captions, *footnotes])
-    return _clean_text(combined_text)
-
-
-def _table_text(item: dict) -> str:
-    text_parts = [
-        "\n".join(item.get("table_caption", [])),
-        item.get("table_body", ""),
-        "\n".join(item.get("table_footnote", [])),
-    ]
-    combined_text = "\n".join(filter(None, text_parts))
-    return _clean_text(combined_text)
-
-
-def _list_text(item: dict) -> str:
-    list_items = item.get("list_items") or []
-    if list_items:
-        combined_text = "\n".join(list_items)
-    else:
-        combined_text = item.get("text", "")
-    return _clean_text(combined_text)
-
-
 def _actual_parse(
     file_path: str, pipeline: str, options: Optional[Dict[str, object]] = None
 ) -> Dict[str, object]:
@@ -167,50 +142,7 @@ def _actual_parse(
             return_txt=return_txt,
             **options,
         )
-        results: List[Dict[str, object]] = []
-        filtered_items: List[dict] = []
-        for item in content_list_content:
-            itype = item.get("type")
-            text: Optional[str] = None
-
-            if itype in ("text", "equation"):
-                candidate = item.get("text", "")
-                if candidate and candidate.strip():
-                    text = _clean_text(candidate)
-            elif itype in ("header", "footer"):
-                if not chunk_type:
-                    continue
-                candidate = item.get("text", "")
-                if candidate and candidate.strip():
-                    text = _clean_text(candidate)
-            elif itype == "list" and (
-                any(text.strip() for text in item.get("list_items", []))
-                or item.get("text", "").strip()
-            ):
-                text = _list_text(item)
-            elif itype == "image" and (item.get("img_caption") or item.get("img_footnote")):
-                text = _image_text(item)
-            elif itype == "table" and (
-                item.get("table_caption") or item.get("table_body") or item.get("table_footnote")
-            ):
-                text = _table_text(item)
-            else:
-                continue
-
-            if not text:
-                continue
-
-            chunk: Dict[str, object] = {
-                "text": text,
-                "page_number": int(item.get("page_idx", 0)) + 1,
-            }
-            if chunk_type:
-                if itype == "text" and item.get("text_level") is not None:
-                    chunk["type"] = "title"
-                elif itype in ("header", "footer"):
-                    chunk["type"] = itype
-            results.append(chunk)
-            filtered_items.append(item)
+        results = project_legacy_content(content_list_content, chunk_type=chunk_type)
 
         txt_text = None
         if return_txt:
